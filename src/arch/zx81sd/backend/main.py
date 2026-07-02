@@ -155,8 +155,7 @@ class Backend(Z80Backend):
         output.append("di")
         output.append("halt")
         output.append("org $0028")
-        output.append("di")            # $0028: RST $28 FP calc — nunca con __ZXB_NO_FLOAT
-        output.append("halt")
+        output.append("jp .core.FP_CALC_ENTRY")  # $0028: RST $28 -> calculador FP propio
         output.append("org $0030")
         output.append("di")
         output.append("halt")

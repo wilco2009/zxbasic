@@ -48,7 +48,25 @@ RANDOM_SEED_LOW     EQU SYSVAR_BASE + $1C   ; DW  — semilla RNG (16 bits bajos
 SCREEN_ADDR         EQU SYSVAR_BASE + $1E   ; DW  — puntero al framebuffer (init: $C000)
 SCREEN_ATTR_ADDR    EQU SYSVAR_BASE + $20   ; DW  — puntero a atributos   (init: $D800)
 
-; Tamaño total del bloque de sysvars: $22 bytes
+; --- Sysvars del calculador de coma flotante (fp_calc.asm) --------------
+; Equivalentes a STKBOT/STKEND/BREG/MEM de la ROM Spectrum ($5C63/$5C65/
+; $5C67/$5C68), pero apuntando a un buffer fijo propio en vez de al área
+; de trabajo dinámica de la ROM (aquí no existe "memoria libre creciente"
+; entre el programa y la pila de máquina).
+;
+; IMPORTANTE: FP_BREG debe estar INMEDIATAMENTE DESPUÉS de FP_STKEND — el
+; motor CALCULATE (L338E, ENT-TABLE) explota la contigüidad de memoria de
+; la ROM original (STKEND_hi seguido de BREG) para cargar ambos con un
+; único LD BC,(FP_STKEND+1): C=STKEND_hi, B=BREG. No reordenar.
+FP_STKBOT           EQU SYSVAR_BASE + $22   ; DW — base de la pila de números FP
+FP_STKEND           EQU SYSVAR_BASE + $24   ; DW — siguiente posición libre en la pila FP
+FP_BREG             EQU SYSVAR_BASE + $26   ; DB — literal en curso (para fp-calc-2/dec-jr-nz)
+FP_MEM              EQU SYSVAR_BASE + $27   ; DW — puntero al área MEM (6 celdas de 5B)
+FP_CALC_STACK       EQU SYSVAR_BASE + $29   ; 60B — pila de números FP (12 números máx.)
+FP_CALC_STACK_END   EQU FP_CALC_STACK + 60
+FP_MEM_AREA         EQU SYSVAR_BASE + $65   ; 30B — área MEM (6 celdas de 5 bytes)
+
+; Tamaño total del bloque de sysvars: $83 bytes
 
 ; --- Constantes de pantalla ---------------------------------------------
 

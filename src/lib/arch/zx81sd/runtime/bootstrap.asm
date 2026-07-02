@@ -12,6 +12,13 @@
 #include once <sysvars.asm>
 #include once <charset.asm>
 
+; fp_calc.asm se incluye siempre (no solo cuando el programa usa FLOAT):
+; el vector RST $28h (src/arch/zx81sd/backend/main.py, emit_prologue) salta
+; incondicionalmente a FP_CALC_ENTRY, así que esa etiqueta debe existir en
+; todo binario, aunque el programa concreto no acabe generando código que
+; la invoque.
+#include once <fp_calc.asm>
+
 #init .core.SD81_INIT_SYSVARS
 
     push namespace core
@@ -74,6 +81,14 @@ SD81_INIT_SYSVARS:
     ld   hl, 0
     ld   (FRAMES), hl
     ld   (RANDOM_SEED_LOW), hl
+
+    ; Calculador de coma flotante (fp_calc.asm): pila FP vacía, MEM en su
+    ; posición por defecto (ver sysvars.asm)
+    ld   hl, FP_CALC_STACK
+    ld   (FP_STKBOT), hl
+    ld   (FP_STKEND), hl
+    ld   hl, FP_MEM_AREA
+    ld   (FP_MEM), hl
 
     ret
 

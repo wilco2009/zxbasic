@@ -5,7 +5,9 @@
 ;   Entrada: A = 191 (límite superior Y), B = Y (0=abajo, 191=arriba), C = X (0-255)
 ;   Salida:  HL = offset dentro del bitmap desde $0000 (sin base de pantalla)
 ;            A  = X AND 7  (posición del bit, 0=izquierda/bit7, 7=derecha/bit0)
-;   Destruye: B, D
+;   Destruye: B (como la ROM). DEBE preservar D y E: draw.asm salva B' en D'
+;   alrededor de esta llamada (ld d,b / call PIXEL_ADDR / ld b,d), igual que
+;   hacía con PIXEL-ADD ($22AC) de la ROM Spectrum, que tampoco tocaba DE.
 ;
 ; El llamador (plot.asm, draw.asm) añade la base de pantalla:
 ;   res 6, h        ; no-op en nuestro caso (H siempre en $00-$17)
@@ -22,7 +24,7 @@ PIXEL_ADDR:
     PROC
 
     sub  b               ; A = 191 - Y  (convierte coord Spectrum a offset desde arriba)
-    ld   d, a            ; D = V = 191-Y
+    ld   b, a            ; B = V = 191-Y  (B ya no se necesita: era la Y de entrada)
 
     ; -- H: tercio (bits 12-11) + línea en tercio (bits 10-8) --
     and  $C0             ; A = (V AND $C0) = tercio * 64
@@ -30,22 +32,16 @@ PIXEL_ADDR:
     rrca
     rrca                 ; A = tercio * 8
     ld   h, a
-    ld   a, d
+    ld   a, b
     and  $07             ; A = línea en tercio (0-7)
     or   h
     ld   h, a            ; H = (tercio<<3) | línea_en_tercio
 
     ; -- L: fila de carácter (bits 7-5) + columna de byte (bits 4-0) --
-    ld   a, d
+    ld   a, b
     and  $38             ; A = fila_de_char * 8
-    rrca
-    rrca
-    rrca                 ; A = fila_de_char (0-7)
     rlca
-    rlca
-    rlca
-    rlca
-    rlca                 ; A = fila_de_char * 32
+    rlca                 ; A = fila_de_char * 32 (tras AND $38 no hay acarreo al rotar)
     ld   b, a
     ld   a, c
     rrca
