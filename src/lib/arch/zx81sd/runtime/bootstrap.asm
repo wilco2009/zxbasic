@@ -33,11 +33,20 @@ SD81_INIT_SYSVARS:
     ld   hl, __ZX81SD_CHARSET - 256
     ld   (CHARS), hl
 
-    ; UDG: primer carácter definible por el usuario (CHR$(144) en Spectrum)
-    ; = font base + (144-32)*8 = font + 896. Con la convención CHARS-256:
-    ; UDG = CHARS + 144*8 = __ZX81SD_CHARSET - 256 + 1152 = __ZX81SD_CHARSET + 896
-    ld   hl, __ZX81SD_CHARSET + 896
+    ; UDG: área dedicada de 21 caracteres definibles (CHR$(144)-CHR$(164),
+    ; como en el Spectrum), reservada en charset.asm DESPUÉS de la fuente.
+    ; (La fuente sólo cubre CHR$(32)-CHR$(127): el antiguo "font+896"
+    ; apuntaba 128 bytes más allá de su final, sobre código del runtime,
+    ; y los POKE USR CHR$ de un programa lo corrompían.)
+    ld   hl, __ZX81SD_UDG_AREA
     ld   (UDG), hl
+
+    ; Inicializa los UDGs con copias de las letras A-U (como la ROM del
+    ; Spectrum): glifo de 'A' = font + (65-32)*8 = font + 264.
+    ld   hl, __ZX81SD_CHARSET + 264
+    ld   de, __ZX81SD_UDG_AREA
+    ld   bc, 21 * 8
+    ldir
 
     ; Cursor al inicio de pantalla (columna=SCR_COLS, fila=SCR_ROWS)
     ld   a, SCR_ROWS
