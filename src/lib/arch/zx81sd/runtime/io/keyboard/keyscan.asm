@@ -150,15 +150,19 @@ NO_KEY:
     ; Orden de filas/columnas identico al de las tablas K-UNSHIFT/K-SHIFT
     ; de la ROM original del ZX81 (fila 0: SHIFT,Z,X,C,V ... fila 7:
     ; ENTER,L,K,J,H / SPACE,.,M,N,B), verificado contra el disassembly.
+    ; Las letras se decodifican en MINUSCULA, igual que el INKEY$ del
+    ; Spectrum en modo L (el por defecto): los programas de la epoca
+    ; comparan INKEY$ con "o","p","q","a","y","n"... y con mayusculas
+    ; no responderian (p.ej. examples/comecoquitos.bas).
 UNSHIFT_TABLE:
-    DEFB 'Z', 'X', 'C', 'V'
-    DEFB 'A', 'S', 'D', 'F', 'G'
-    DEFB 'Q', 'W', 'E', 'R', 'T'
+    DEFB 'z', 'x', 'c', 'v'
+    DEFB 'a', 's', 'd', 'f', 'g'
+    DEFB 'q', 'w', 'e', 'r', 't'
     DEFB '1', '2', '3', '4', '5'
     DEFB '0', '9', '8', '7', '6'
-    DEFB 'P', 'O', 'I', 'U', 'Y'
-    DEFB 13,  'L', 'K', 'J', 'H'    ; NEWLINE -> ENTER (ASCII 13)
-    DEFB ' ', '.', 'M', 'N', 'B'
+    DEFB 'p', 'o', 'i', 'u', 'y'
+    DEFB 13,  'l', 'k', 'j', 'h'    ; NEWLINE -> ENTER (ASCII 13)
+    DEFB ' ', '.', 'm', 'n', 'b'
 
 SHIFT_TABLE:
     DEFB ':', ';', '?', '/'
