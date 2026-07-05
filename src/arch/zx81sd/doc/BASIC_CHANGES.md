@@ -328,6 +328,51 @@ normal `__END_PROGRAM`/`HALT`. **Confirmed working on real hardware.**
 
 ---
 
+## 10. MCU command examples (unofficial, no example to adapt)
+
+Six new example programs demonstrating the SD81 Booster MCU's command
+surface (`stdlib/mcu.bas`/`joy.bas`), written directly for zx81sd —
+none of them adapt an official `examples/` program. `examples/sd81/
+filesystem.bas` already existed from an earlier session (it's what the
+companion repository's `files.bas`/`FILES*` binaries were compiled
+from) and was expanded to also demo `McuMkdir`/`McuRmdir`/`McuCopy`/
+`McuMove`/`McuFree`, not just `McuCd`/`McuDirPrint`/`McuLoad`.
+
+| File | MCU commands exercised | Status |
+|---|---|---|
+| `examples/sd81/filesystem.bas` | `McuPwd`, `McuCd`, `McuDirPrint`, `McuMkdir`, `McuRmdir`, `McuSave`, `McuCopy`, `McuMove`, `McuDel`, `McuFree` | Compiles clean; not yet run on hardware |
+| `examples/sd81/wavplayer.bas` | `McuLoad` with a `.WAV` file (played directly by the MCU, not loaded into memory) | Compiles clean; not yet run on hardware |
+| `examples/sd81/vgmplayer.bas` | `McuPlayVgm`, `McuContVgm`, `McuPauseVgm`, `McuStopVgm` | Compiles clean; not yet run on hardware |
+| `examples/sd81/pegdemo.bas` | `McuLoadPeg`, `McuPlayPeg`, `McuStopPeg` | Compiles clean; **PEG byte encoding unconfirmed on hardware**, see note below |
+| `examples/sd81/joystick.bas` | `Joy()` (joy.bas, MCU cmd 21) | Compiles clean; not yet run on hardware |
+| `examples/sd81/randomaccess.bas` | `McuFOpenZx`, `McuFSeek`, `McuFRead`, `McuFWrite`, `McuFClose` | Compiles clean; not yet run on hardware |
+
+Memory-mapper access (`Map()`/`MapGet()`) already has a dedicated
+example, `examples/sd81/block7test.bas` (see section 8 above), so no
+new one was added for that.
+
+**Compile-time bug found while writing these**: `stdlib/input.bas`
+defines `input()` as a **function** (`a$ = input(maxChars)`), not the
+native BASIC `INPUT` statement — using `input a$` (statement syntax)
+after `#include <input.bas>` produces
+`error: Cannot convert string to a value. Use VAL() function`, since
+the identifier `input` is now bound to that function. All six examples
+above end with `a$ = input(20)` to wait for a keypress, not
+`input a$`.
+
+**PEG byte encoding, open question**: the SD81 Booster manual's
+Appendix B documents the PEG instruction set as 16-bit words in
+big-endian order (e.g. `LD R,XX` = `0R XX`), but `mcu.bas`'s own
+comment on `McuLoadPeg` says the raw bytes it expects are
+"2 bytes little-endian per instruction". `pegdemo.bas` follows the
+`mcu.bas` comment literally (since that's the function actually being
+called) — each instruction's value byte is sent before its opcode
+byte. This hasn't been confirmed against a working `.PEB` file or the
+`peg.py` assembler mentioned in the manual, so treat the exact byte
+order as unverified until tested on hardware.
+
+---
+
 ## Summary for the manual
 
 | Example | zx81sd copy | Source changes | Compile flags |
@@ -341,6 +386,7 @@ normal `__END_PROGRAM`/`HALT`. **Confirmed working on real hardware.**
 | pong.bas (unofficial) | `pong.bas` in `examples/sd81/` | 1 ASM line (VSYNC_TICK namespace) | none special |
 | block7test.bas (unofficial) | `block7test.bas` in `examples/sd81/` | n/a (written directly for zx81sd) | none special |
 | print42.bas/print64.bas (libraries) | not applicable (not examples) | none — the fix was in `stdlib/print42.bas`/`print64.bas` | none special |
+| filesystem.bas, wavplayer.bas, vgmplayer.bas, pegdemo.bas, joystick.bas, randomaccess.bas (unofficial) | all in `examples/sd81/` | n/a (written directly for zx81sd) | none special |
 
 Pattern identified for future examples:
 
@@ -365,3 +411,8 @@ Pattern identified for future examples:
    trusting that the rest of the runtime (`CLS`/`PRINT`) already
    included it. See the `print42.bas`/`print64.bas` case above and
    [PRECAUTIONS.md](PRECAUTIONS.md).
+5. `stdlib/input.bas` defines `input()` as a function
+   (`a$ = input(maxChars)`), not the native `INPUT a$` statement — once
+   `#include <input.bas>` is used, `input a$` fails with
+   `error: Cannot convert string to a value`. See the MCU examples case
+   above.
