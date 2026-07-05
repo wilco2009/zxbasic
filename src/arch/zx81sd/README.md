@@ -1,113 +1,109 @@
-# Arquitectura `zx81sd`: ZX81 + SD81 Booster
+# `zx81sd` architecture: ZX81 + SD81 Booster
 
-`zx81sd` es una arquitectura de este compilador para un **ZX81 real con
-la tarjeta [SD81 Booster](https://www.sd81.eu/)** (una interfaz que
-añade pantalla tipo Spectrum, sonido AY/beeper, mapeador de memoria por
-páginas y acceso a tarjeta SD).
+`zx81sd` is an architecture for this compiler targeting a **real ZX81
+with the [SD81 Booster](https://www.sd81.eu/) card** (an interface that
+adds a Spectrum-like screen, AY/beeper sound, a paged memory mapper and
+SD card access).
 
-Todo el código específico de esta arquitectura vive exclusivamente bajo:
+All code specific to this architecture lives exclusively under:
 
 ```
-src/arch/zx81sd/            (backend del compilador, esta documentación,
-                             y las herramientas de empaquetado en tools/)
-src/lib/arch/zx81sd/        (runtime ASM + stdlib BASIC)
+src/arch/zx81sd/            (compiler backend, this documentation,
+                             and the packaging tools under tools/)
+src/lib/arch/zx81sd/        (ASM runtime + BASIC stdlib)
 ```
 
-## Regla de oro del port
+## The port's golden rule
 
-Este compilador es compartido por todas las arquitecturas (zx48k,
-zx128k, zxnext...). **El port de zx81sd nunca modifica el frontend ni
-la stdlib/runtime compartidos.** El mecanismo de resolución de
-`#include`/`#require` busca primero en `src/lib/arch/zx81sd/`, y si no
-encuentra el fichero cae automáticamente en `src/lib/arch/zx48k/` (el
-fichero compartido). Por eso muchos overrides de zx81sd son copias
-completas de la versión zx48k con solo unas pocas líneas cambiadas: hay
-que copiar el fichero entero, no un parche — un override parcial
-simplemente no existe como concepto aquí.
+This compiler is shared by every architecture (zx48k, zx128k,
+zxnext...). **The zx81sd port never modifies the shared frontend or
+stdlib/runtime.** The `#include`/`#require` resolution mechanism looks
+first in `src/lib/arch/zx81sd/`, and if it doesn't find the file it
+automatically falls back to `src/lib/arch/zx48k/` (the shared one).
+That's why many zx81sd overrides are full copies of the zx48k version
+with just a few lines changed: the whole file has to be copied, not
+patched — a partial override simply doesn't exist as a concept here.
 
-Antes de tocar cualquier cosa fuera de `zx81sd/`, para: seguramente hay
-una forma de resolverlo con un override.
+Before touching anything outside `zx81sd/`, stop: there's probably a
+way to solve it with an override.
 
-## Estado del port
+## Port status
 
-Funcionalmente completo desde 2026-07-02: FP (RST $28 propio),
-gráficos (PLOT/DRAW/arcos/CIRCLE), sonido (BEEP y PLAY sobre AY ZonX y
-beeper), teclado (INKEY$/INPUT sobre el teclado físico del ZX81),
-joystick, la librería MCU completa (ficheros, RTC/BAT, voz, mapeador de
-memoria...) y LOAD/SAVE/VERIFY...CODE contra SD.
+Functionally complete since 2026-07-02: FP (our own RST $28), graphics
+(PLOT/DRAW/arcs/CIRCLE), sound (BEEP and PLAY over the AY ZonX and the
+beeper), keyboard (INKEY$/INPUT over the ZX81's physical keyboard),
+joystick, the complete MCU library (files, RTC/BAT, voice, memory
+mapper...) and LOAD/SAVE/VERIFY...CODE against SD.
 
-Pendiente / sin auditar, resto de utilidades de pantalla de la stdlib
-compartida:
+Pending / not audited, remaining screen utilities in the shared stdlib:
 
-- `winscroll.bas`: se cree ya portado y probado, pero sin confirmar con
-  una auditoría formal (no hay override en `zx81sd/stdlib/` — de ser
-  cierto, es porque no necesitaba ninguno, como `scroll.bas` antes del
-  fix o `4inarow.bas`).
-- `putchars.bas`/`puttile.bas`: sin auditar ni probar. Un vistazo rápido
-  al fuente no encuentra direcciones de ROM/sysvars del Spectrum
-  (`putChars` rellena un rectángulo de caracteres, `putTile` coloca un
-  tile de 16×16 px), así que son buenos candidatos a funcionar sin
-  cambios, pero no está confirmado.
-- `screen.bas`: **sí depende de la ROM** (`$2538`/`$5C65`/`$19E8`,
-  rutinas y sysvars fijas del Spectrum para leer de vuelta un carácter
-  de pantalla) — necesitará un override real, no solo una auditoría.
-- `print42.bas`/`print64.bas`: **portados** (override completo en
-  `stdlib/`) — sysvars fijas → equivalentes zx81sd, y las constantes de
-  base de pantalla/atributos se parchean en tiempo de ejecución
-  (automodificación de código) en vez de ser fijas. Verificado por
-  simulación (texto legible píxel a píxel, sin corrupción de memoria);
-  pendiente de confirmar en el emulador/hardware real.
+- `winscroll.bas`: believed to be already ported and tested, but not
+  confirmed by a formal audit (no override in `zx81sd/stdlib/` — if
+  true, it's because it didn't need one, like `scroll.bas` before its
+  fix, or `4inarow.bas`).
+- `putchars.bas`/`puttile.bas`: not audited or tested. A quick look at
+  the source finds no Spectrum ROM/sysvar addresses (`putChars` fills a
+  rectangle of characters, `putTile` places a 16×16 px tile), so
+  they're good candidates to work unchanged, but this isn't confirmed.
+- `screen.bas`: **does depend on the ROM** (`$2538`/`$5C65`/`$19E8`,
+  fixed Spectrum routines and sysvars to read back a screen character)
+  — will need a real override, not just an audit.
+- `print42.bas`/`print64.bas`: **ported** (full override in `stdlib/`)
+  — fixed sysvars → zx81sd equivalents, and the screen/attribute base
+  constants are patched at runtime (self-modifying code) instead of
+  being fixed. Verified by simulation (legible pixel-by-pixel text, no
+  memory corruption); pending confirmation on the emulator/real
+  hardware.
 
-Ver [doc/CAMBIOS_BASIC.md](doc/CAMBIOS_BASIC.md) para el patrón general
-de este tipo de fix. El port de `maskedsprites.bas`/MSFS (sprites
-enmascarados sobre el mapeador de memoria) también está en proceso, aún
-sin terminar de funcionar bien.
+See [doc/BASIC_CHANGES.md](doc/BASIC_CHANGES.md) for the general
+pattern behind this kind of fix. The `maskedsprites.bas`/MSFS port
+(masked sprites over the memory mapper) is also in progress, still not
+fully working.
 
-## Documentación
+## Documentation
 
-- **[doc/USO.md](doc/USO.md)** — cómo compilar un programa, empaquetarlo
-  para el ZX81 y cargarlo desde la tarjeta SD.
-- **[doc/PRECAUCIONES.md](doc/PRECAUCIONES.md)** — qué hay que tener en
-  cuenta al escribir o portar software para esta arquitectura (mapa de
-  memoria, sysvars, teclado, cosas que NO existen aquí aunque existan
-  en Spectrum).
-- **[doc/CAMBIOS_BASIC.md](doc/CAMBIOS_BASIC.md)** — qué cambios de
-  fuente BASIC hizo falta para portar cada ejemplo oficial de
-  `examples/` (con el porqué de cada uno). Punto de partida obligado
-  antes de portar un ejemplo nuevo: casi siempre es uno de los patrones
-  ya catalogados ahí.
-- **[doc/MAP.md](doc/MAP.md)** — bitácora técnica detallada de todos los
-  bugs encontrados y corregidos durante el port (runtime ASM, no
-  fuentes BASIC), con la traza de investigación de cada uno. Es el
-  documento a consultar cuando algo falla en tiempo de ejecución de
-  forma que recuerda a un bug ya resuelto.
+- **[doc/USAGE.md](doc/USAGE.md)** — how to compile a program, package
+  it for the ZX81 and load it from the SD card.
+- **[doc/PRECAUTIONS.md](doc/PRECAUTIONS.md)** — what to keep in mind
+  when writing or porting software for this architecture (memory map,
+  sysvars, keyboard, things that do NOT exist here even though they do
+  on a Spectrum).
+- **[doc/BASIC_CHANGES.md](doc/BASIC_CHANGES.md)** — what BASIC source
+  changes were needed to port each official example in `examples/`
+  (with the why for each one). Mandatory starting point before porting
+  a new example: it's almost always one of the patterns already
+  cataloged there.
+- **[doc/MAP.md](doc/MAP.md)** — detailed technical log of every bug
+  found and fixed during the port (ASM runtime, not BASIC sources),
+  with the investigation trace for each one. The document to check
+  when something fails at runtime in a way that resembles an
+  already-solved bug.
 
-## Ejemplos
+## Examples
 
-Los programas de ejemplo ya adaptados/probados para esta arquitectura
-están en [`examples/sd81/`](../../../examples/sd81/) (junto al resto de
-`examples/` del compilador). El detalle de qué hubo que tocar en cada
-uno, y por qué, está en [doc/CAMBIOS_BASIC.md](doc/CAMBIOS_BASIC.md).
+The example programs already adapted/tested for this architecture are
+in [`examples/sd81/`](../../../examples/sd81/) (alongside the rest of
+the compiler's `examples/`). The detail of what had to be changed in
+each one, and why, is in
+[doc/BASIC_CHANGES.md](doc/BASIC_CHANGES.md).
 
-## Herramientas de empaquetado
+## Packaging tools
 
-[`tools/split_sd81.py`](tools/split_sd81.py) parte el binario plano
-generado por el compilador en páginas de 8KB y genera el cargador `.p`
-para el ZX81; [`tools/zx81_p_loader.py`](tools/zx81_p_loader.py) es el
-tokenizador BASIC que usa para generarlo; [`tools/boot1.asm`](tools/boot1.asm)/
-[`tools/boot1.bin`](tools/boot1.bin) son el cargador de segunda etapa
-(stage 1), fijo para todos los programas. Ver
-[doc/USO.md](doc/USO.md) para el flujo completo de compilar →
-empaquetar → cargar. El conjunto más amplio de fuentes de depuración/
-diagnóstico usados durante el desarrollo del port (no herramientas,
-solo pruebas puntuales) vive en un repositorio complementario privado,
-no en este.
+[`tools/split_sd81.py`](tools/split_sd81.py) splits the flat binary
+produced by the compiler into 8KB pages and generates the `.p` loader
+for the ZX81; [`tools/zx81_p_loader.py`](tools/zx81_p_loader.py) is the
+BASIC tokenizer it uses to generate it; [`tools/boot1.asm`](tools/boot1.asm)/
+[`tools/boot1.bin`](tools/boot1.bin) are the second-stage loader (stage
+1), fixed for every program. See [doc/USAGE.md](doc/USAGE.md) for the
+full compile → package → load flow. The wider set of debugging/
+diagnostic sources used during the port's development (not tools, just
+one-off tests) lives in a private companion repository, not this one.
 
-## Repositorios relacionados
+## Related repositories
 
 - **[SD81 Booster](https://codeberg.org/Retrostuff/SD81-Booster)** —
-  firmware/hardware de la interfaz para la que se ha hecho este port.
+  the hardware/firmware for the interface this port targets.
 - **[EightyOne Cross-platform](https://codeberg.org/wilco2009/EightyOne-CrossPlatform)** —
-  emulador usado durante el desarrollo para probar sin hardware real.
-- **[CPM_SD81](https://codeberg.org/wilco2009/CPM_SD81)** — CP/M sobre
-  el SD81 Booster.
+  the emulator used during development to test without real hardware.
+- **[CPM_SD81](https://codeberg.org/wilco2009/CPM_SD81)** — CP/M on the
+  SD81 Booster.

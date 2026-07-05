@@ -1,39 +1,41 @@
 #!/usr/bin/env python3
 """
-zx81_p_loader.py — Generador de ficheros .p (BASIC tokenizado) para ZX81
+zx81_p_loader.py — .p file (tokenized BASIC) generator for the ZX81
 
-Puerto directo a Python del algoritmo de tokenización usado por el emulador
-EightyOne (zx81BasicLoader.cpp / IBasicLoader.cpp), referencia:
+Direct Python port of the tokenization algorithm used by the EightyOne
+emulator (zx81BasicLoader.cpp / IBasicLoader.cpp), reference:
   C:\\ClaudeCode\\Eightyone2\\src\\zx81\\zx81BasicLoader.cpp
   C:\\ClaudeCode\\Eightyone2\\src\\BasicLoader\\IBasicLoader.cpp
 
-Los comandos extendidos del firmware SD81 Booster (LOAD THEN CLEAR, LOAD *MAP,
-LOAD FAST ... CODE, etc.) no necesitan tratamiento especial: aunque esa
-sintaxis no la admite el intérprete de la ROM del ZX81, están compuestos por:
-  - Tokens estándar del ZX81 (THEN, CLEAR, FAST, CODE, LOAD...) en posiciones
-    que la ROM no usaría pero que SÍ se pueden teclear (p.ej. SHIFT+3 = THEN).
-  - Palabras sueltas tras un asterisco (p.ej. *MAP, *VER) que son letras
-    corrientes, no tokens.
-Por tanto basta con tokenizar el texto igual que cualquier BASIC estándar:
-el propio algoritmo genérico ya produce la codificación correcta.
+The SD81 Booster firmware's extended commands (LOAD THEN CLEAR,
+LOAD *MAP, LOAD FAST ... CODE, etc.) need no special handling: even
+though the ZX81 ROM interpreter doesn't accept that syntax, they're
+made up of:
+  - Standard ZX81 tokens (THEN, CLEAR, FAST, CODE, LOAD...) in
+    positions the ROM wouldn't use but that CAN be typed (e.g.
+    SHIFT+3 = THEN).
+  - Standalone words after an asterisk (e.g. *MAP, *VER) which are
+    plain letters, not tokens.
+So it's enough to tokenize the text just like any standard BASIC: the
+generic algorithm itself already produces the correct encoding.
 
-No implementa (no hace falta para este proyecto): etiquetas @label, bloques
-numéricos [DEC:...]/[HEX:...]/[BIN:...], secuencias de escape \\xx, códigos
-gráficos, ni "alternate keyword spelling". Documentados en IBasicLoader.cpp
-si en el futuro hicieran falta.
+Not implemented (not needed for this project): @label tags, numeric
+blocks [DEC:...]/[HEX:...]/[BIN:...], \\xx escape sequences, graphics
+codes, or "alternate keyword spelling". Documented in IBasicLoader.cpp
+in case they're ever needed.
 """
 
 import math
 import re
 import struct
 
-BLANK = "\x01"          # marcador interno: posición ya consumida
+BLANK = "\x01"          # internal marker: position already consumed
 NEWLINE = 0x76
-NUMBER_MARK = 0x7E       # precede a los 5 bytes de número embebido
-DOUBLE_QUOTE = 0xC0      # comilla escapada ("") dentro de una cadena
+NUMBER_MARK = 0x7E       # precedes the 5 bytes of an embedded number
+DOUBLE_QUOTE = 0xC0      # escaped quote ("") inside a string
 
-# Tokens estándar ZX81 (de zx81BasicLoader::ExtractTokens, sin variantes
-# "alternate spelling" ni extensiones ZXpand)
+# Standard ZX81 tokens (from zx81BasicLoader::ExtractTokens, without
+# "alternate spelling" variants or ZXpand extensions)
 TOKENS = {
     64: "RND",
     65: "INKEY$",
@@ -104,7 +106,7 @@ TOKENS = {
 
 
 def ascii_to_zx(c: str) -> int:
-    """Puerto de zx81BasicLoader::AsciiToZX."""
+    """Port of zx81BasicLoader::AsciiToZX."""
     if c.isalpha():
         return (ord(c.upper()) - ord('A')) + 38
     if c.isdigit():
@@ -118,11 +120,11 @@ def ascii_to_zx(c: str) -> int:
     if c in table:
         return table[c]
 
-    raise ValueError(f"Caracter invalido: {c!r}")
+    raise ValueError(f"Invalid character: {c!r}")
 
 
 def zx81_float(value: float) -> bytes:
-    """Puerto de zx81BasicLoader::OutputFloatingPointEncoding."""
+    """Port of zx81BasicLoader::OutputFloatingPointEncoding."""
     exponent = 0
     mantissa = 0
 
@@ -151,22 +153,22 @@ def zx81_float(value: float) -> bytes:
 
 
 class _Line:
-    """Estado de trabajo para una linea BASIC (sin numero de linea), replica
-    los buffers mLineBuffer / mLineBufferOutput / mLineBufferPopulated.
+    """Working state for a BASIC line (without a line number), mirroring
+    the mLineBuffer / mLineBufferOutput / mLineBufferPopulated buffers.
 
-    Todos los arrays tienen longitud self.n + 1: el ultimo hueco (indice n)
-    es un relleno de seguridad para cuando un token consume el espacio
-    artificial añadido al final para detectar tokens sin espacio de cierre
-    en el texto original (igual que el buffer sobredimensionado de C++).
+    All arrays have length self.n + 1: the last slot (index n) is a
+    safety pad for when a token consumes the artificial space added at
+    the end to detect tokens with no closing space in the original
+    text (same as the oversized C++ buffer).
     """
 
     def __init__(self, text: str):
-        content = " " + text            # ReadLine antepone siempre un espacio
+        content = " " + text            # ReadLine always prepends a space
         self.n = len(content)
-        self.buf = list(content) + [BLANK]      # +1 hueco de seguridad
+        self.buf = list(content) + [BLANK]      # +1 safety slot
         self.out = [BLANK] * (self.n + 1)
         self.populated = [False] * (self.n + 1)
-        # BlankLineStart: sin numero de linea embebido, deja 1 espacio real
+        # BlankLineStart: no embedded line number, leaves 1 real space
         self.buf[0] = ' '
 
 
@@ -175,7 +177,7 @@ def _mask_copy(chars: list) -> list:
 
 
 def _mask_out_strings(tokenised: list):
-    """Puerto de IBasicLoader::MaskOutStrings."""
+    """Port of IBasicLoader::MaskOutStrings."""
     text = "".join(tokenised)
     q1 = text.find('"')
     if q1 == -1:
@@ -205,7 +207,7 @@ def _mask_out_strings(tokenised: list):
 
 
 def _mask_out_rem_contents(tokenised: list):
-    """Puerto de IBasicLoader::MaskOutRemContents."""
+    """Port of IBasicLoader::MaskOutRemContents."""
     text = "".join(tokenised)
     rem = " REM "
     pos = 0
@@ -227,8 +229,8 @@ def _mask_out_rem_contents(tokenised: list):
 
 
 def _extract_double_quote_characters(line: _Line):
-    """Puerto de zx81BasicLoader::ExtractDoubleQuoteCharacters (sin soporte
-    de REM tokenizado ni alternate spelling, no necesarios aqui)."""
+    """Port of zx81BasicLoader::ExtractDoubleQuoteCharacters (without
+    tokenized-REM support or alternate spelling, not needed here)."""
     buf = line.buf
     n = line.n
     within_quote = False
@@ -252,9 +254,9 @@ def _extract_double_quote_characters(line: _Line):
 
 
 def _do_tokenise(line: _Line, tokenised: list):
-    """Puerto de IBasicLoader::DoTokenise. Recorre los tokens de codigo mas
-    alto a mas bajo (equivalente al reverse_iterator sobre un std::map),
-    mutando `tokenised` (busqueda) y line.buf/out/populated (resultado)."""
+    """Port of IBasicLoader::DoTokenise. Walks tokens from highest to
+    lowest code (equivalent to the reverse_iterator over a std::map),
+    mutating `tokenised` (search) and line.buf/out/populated (result)."""
     for token_code in sorted(TOKENS.keys(), reverse=True):
         token = TOKENS[token_code]
         len_token = len(token)
@@ -278,7 +280,7 @@ def _do_tokenise(line: _Line, tokenised: list):
         while True:
             guard += 1
             if guard > 10000:
-                raise RuntimeError(f"Bucle de tokenizacion sin fin para {token!r}")
+                raise RuntimeError(f"Endless tokenizing loop for {token!r}")
 
             text = "".join(tokenised)
             pos = text.find(token)
@@ -292,8 +294,8 @@ def _do_tokenise(line: _Line, tokenised: list):
                        or (end_pos >= len(tokenised)) or (not tokenised[end_pos].isalnum()))
 
             if not (prev_ok and next_ok):
-                # Coincidencia pegada a un identificador: no es el token,
-                # se "rompe" localmente para seguir buscando mas adelante.
+                # Match glued to an identifier: not the token, "break"
+                # it locally so the search keeps going further ahead.
                 tokenised[pos] = '\x02'
                 continue
 
@@ -315,22 +317,23 @@ def _do_tokenise(line: _Line, tokenised: list):
 
 
 def _start_of_number(line: _Line, tokenised: list, index: int) -> bool:
-    """Determina si `index` es el inicio de un literal numerico.
+    """Determines whether `index` is the start of a numeric literal.
 
-    Difiere deliberadamente del original IBasicLoader::StartOfNumber en un
-    punto: aqui solo se mira el caracter INMEDIATAMENTE anterior (retrocede
-    sobre espacios reales pero se detiene tan pronto encuentra CUALQUIER
-    caracter que no sea espacio, sin seguir retrocediendo mas alla). El
-    original retrocedia sobre TODOS los espacios consecutivos y comprobaba
-    el caracter previo a todos ellos, lo cual en BASIC estandar es
-    equivalente (los tokens siempre consumen su propio espacio final como
-    BLANK, no como ' ' literal) pero falla en comandos custom del SD81 como
-    "*MAP 7,8": "MAP" no es un token reconocido, por lo que el espacio tras
-    el queda como ' ' literal, y el algoritmo original terminaba mirando la
-    'P' de MAP (alfabetica) y decidia que "7" NO era un numero. En un ZX81
-    real, cualquier digito tecleado tras un espacio genera su propio float
-    embebido sin importar que palabra le precede, asi que aqui se replica
-    ese comportamiento (mas simple y mas correcto para este caso).
+    Deliberately differs from the original
+    IBasicLoader::StartOfNumber on one point: here only the character
+    IMMEDIATELY before is checked (it walks back over real spaces but
+    stops as soon as it finds ANY non-space character, without walking
+    back further). The original walked back over ALL consecutive
+    spaces and checked the character before all of them, which in
+    standard BASIC is equivalent (tokens always consume their own
+    trailing space as BLANK, not as a literal ' ') but fails on SD81
+    custom commands like "*MAP 7,8": "MAP" isn't a recognized token,
+    so the space after it stays as a literal ' ', and the original
+    algorithm ended up looking at the (alphabetic) 'P' of MAP and
+    decided "7" was NOT a number. On a real ZX81, any digit typed after
+    a space generates its own embedded float regardless of the word
+    preceding it, so that behavior is replicated here (simpler and more
+    correct for this case).
     """
     if not (line.buf[index] == '.' or line.buf[index].isdigit()):
         return False
@@ -349,8 +352,9 @@ _NUMBER_RE = re.compile(r'[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?')
 
 
 def _output_embedded_number(line: _Line, index: int, out: bytearray) -> int:
-    """Puerto de IBasicLoader::OutputEmbeddedNumber. Devuelve el nuevo
-    indice (ya avanzado mas alla del numero, listo para `i += 1` fuera)."""
+    """Port of IBasicLoader::OutputEmbeddedNumber. Returns the new
+    index (already advanced past the number, ready for `i += 1`
+    outside)."""
     n = line.n
 
     text_no_spaces = ""
@@ -360,7 +364,7 @@ def _output_embedded_number(line: _Line, index: int, out: bytearray) -> int:
 
     m = _NUMBER_RE.match(text_no_spaces)
     if not m or m.end() == 0:
-        raise ValueError(f"Numero invalido en posicion {index}: {text_no_spaces!r}")
+        raise ValueError(f"Invalid number at position {index}: {text_no_spaces!r}")
     number_len_no_spaces = m.end()
     value = float(m.group(0))
 
@@ -390,17 +394,18 @@ def _output_embedded_number(line: _Line, index: int, out: bytearray) -> int:
 
 
 def process_line_body(text: str) -> bytes:
-    """Tokeniza una linea BASIC (sin numero de linea) y devuelve los bytes
-    ya codificados (sin NEWLINE final, que se añade en encode_line)."""
+    """Tokenizes a BASIC line (without a line number) and returns the
+    already-encoded bytes (without the final NEWLINE, which is added
+    in encode_line)."""
     line = _Line(text)
     n = line.n
 
     _extract_double_quote_characters(line)
 
-    # Copia de trabajo para deteccion de limites de token: el contenido real
-    # (sin el hueco de seguridad de line.buf) + un espacio real extra para
-    # detectar tokens sin espacio de cierre en el texto original. Longitud
-    # n+1, igual que line.buf, para que los indices sigan alineados.
+    # Working copy for token boundary detection: the real content
+    # (without line.buf's safety slot) + one extra real space to
+    # detect tokens with no closing space in the original text.
+    # Length n+1, same as line.buf, so indices stay aligned.
     tokenised = list(line.buf[:n]) + [' ']
 
     _mask_out_strings(tokenised)
@@ -408,7 +413,7 @@ def process_line_body(text: str) -> bytes:
 
     _do_tokenise(line, tokenised)
 
-    # Rellenar cualquier posicion no consumida con su codigo ZX81 directo
+    # Fill any unconsumed position with its direct ZX81 code
     for i in range(1, n):
         if line.buf[i] != BLANK and not line.populated[i]:
             line.out[i] = ascii_to_zx(line.buf[i])
@@ -433,14 +438,14 @@ def encode_line(line_number: int, text: str) -> bytes:
 
 
 def encode_program(lines: list) -> bytes:
-    """lines: lista de tuplas (numero_de_linea:int, texto:str)."""
+    """lines: list of (line_number:int, text:str) tuples."""
     return b"".join(encode_line(n, t) for n, t in lines)
 
 
 def build_p_file(lines: list) -> bytes:
-    """Puerto de zx81BasicLoader::OutputStartOfProgramData +
-    ProcessLine(*) + OutputEndOfProgramData. Devuelve el contenido completo
-    del fichero .p (desde 0x4009)."""
+    """Port of zx81BasicLoader::OutputStartOfProgramData +
+    ProcessLine(*) + OutputEndOfProgramData. Returns the complete
+    contents of the .p file (from 0x4009)."""
     data = bytearray()
 
     def out_byte(b):
@@ -485,12 +490,12 @@ def build_p_file(lines: list) -> bytes:
     out_byte(0xBC)          # PR_CC
     out_word(0x1821)        # S_POSN
     out_byte(0x40)          # CDFLAG
-    data.extend([0x00] * 32)  # PRBUFF (32 bytes vacios)
+    data.extend([0x00] * 32)  # PRBUFF (32 empty bytes)
     out_byte(0x76)            # PRBUFF (byte 33, NEWLINE)
     data.extend([0x00] * 30)  # MEMBOT
     out_word(0x0000)        # SPARE
 
-    # --- Lineas BASIC ---
+    # --- BASIC lines ---
     for line_number, text in lines:
         data.extend(encode_line(line_number, text))
 
@@ -498,10 +503,10 @@ def build_p_file(lines: list) -> bytes:
     START_OF_RAM = 16393  # 0x4009
 
     dfile_address = START_OF_RAM + len(data)
-    data.extend([NEWLINE] * 25)  # display file colapsado (vacio)
+    data.extend([NEWLINE] * 25)  # collapsed display file (empty)
 
     vars_address = START_OF_RAM + len(data)
-    out_byte(0x80)  # fin de VARS (sin variables)
+    out_byte(0x80)  # end of VARS (no variables)
 
     eline_address = START_OF_RAM + len(data)
 
@@ -512,7 +517,7 @@ def build_p_file(lines: list) -> bytes:
     change_word(13, vars_address + 5)    # CH_ADD
     change_word(17, eline_address + 5)   # STKBOT
     change_word(19, eline_address + 5)   # STKEND
-    change_word(32, vars_address)        # NXTLIN (= VARS => sin autorun)
+    change_word(32, vars_address)        # NXTLIN (= VARS => no autorun)
 
     return bytes(data)
 
@@ -520,7 +525,7 @@ def build_p_file(lines: list) -> bytes:
 if __name__ == "__main__":
     import sys
 
-    # Autotest rapido con el loader validado manualmente
+    # Quick self-test with the manually validated loader
     lines = [
         (2, "FAST"),
         (5, "LOAD THEN CLEAR 24575"),
@@ -538,7 +543,7 @@ if __name__ == "__main__":
     with open(out_path, "wb") as f:
         f.write(p_data)
 
-    print(f"Generado {out_path} ({len(p_data)} bytes)")
+    print(f"Generated {out_path} ({len(p_data)} bytes)")
     for i in range(0, len(p_data), 16):
         chunk = p_data[i:i + 16]
         hexpart = " ".join(f"{b:02X}" for b in chunk)

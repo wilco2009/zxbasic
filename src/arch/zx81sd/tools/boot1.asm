@@ -1,33 +1,33 @@
 ; ===========================================================================
 ; bootstrap_stage1.asm — Stage 1 Bootstrap ZX81 + SD81 Booster
 ;
-; Reside en $6000 (bloque 3).  El cargador BASIC lo envía allí antes de
-; nada porque es una zona neutral: BASIC del ZX81 no la necesita, y aún
-; no hemos remapeado ningún bloque.
+; Resides at $6000 (block 3). The BASIC loader sends it there before
+; anything else because it's a neutral area: the ZX81's BASIC doesn't
+; need it, and no block has been remapped yet.
 ;
-; Secuencia de inicio (ver ZX81-SD81-Adaptation-Plan.md):
-;   1. DI  — deshabilitar interrupciones (el ZX81 FAST mode ya lo hace, pero
-;             lo repetimos por seguridad antes de tocar la paginación)
-;   2. Activar modo Superfast HiRes Spectrum vía FPGA (POKE 2045 = $07FD)
-;   3. Desactivar IO mapeado en memoria     (POKE 2056 = $0808)
-;   4. Mapear bloque 0 → página 8 (OUT ($E7), page=8, block=0)
-;      El stage 2 ($0100-$0FFF en página 8) está ahora listo para ejecutar.
-;   5. JP $0100  — salta al stage 2 en la RAM recién mapeada
+; Startup sequence (see ZX81-SD81-Adaptation-Plan.md):
+;   1. DI  — disable interrupts (ZX81 FAST mode already does this, but
+;             it's repeated as a precaution before touching paging)
+;   2. Activate Superfast HiRes Spectrum mode via the FPGA (POKE 2045 = $07FD)
+;   3. Disable memory-mapped IO     (POKE 2056 = $0808)
+;   4. Map block 0 -> page 8 (OUT ($E7), page=8, block=0)
+;      Stage 2 ($0100-$0FFF on page 8) is now ready to run.
+;   5. JP $0100  — jumps to stage 2 in the freshly mapped RAM
 ;
-; Notas:
-;   - HFILE=$C000 es el valor por defecto de la FPGA al activar modo 172.
-;     Si tu hardware requiere configurarlo explícitamente, descomenta el
-;     bloque HFILE al final.
-;   - El stage 1 NO inicializa SP; el stage 2 lo hace (ld sp, $7FFF).
-;   - Bloques 1-5 se mapean en el stage 2 (ya ejecutando desde página 8).
+; Notes:
+;   - HFILE=$C000 is the FPGA's default value when activating mode 172.
+;     If your hardware requires setting it explicitly, uncomment the
+;     HFILE block at the end.
+;   - Stage 1 does NOT initialize SP; stage 2 does (ld sp, $7FFF).
+;   - Blocks 1-5 are mapped in stage 2 (already running from page 8).
 ;
-; Compilar:
+; Compile:
 ;   zxbasm bootstrap_stage1.asm -o bootstrap_stage1.bin
-; o con pasmo:
+; or with pasmo:
 ;   pasmo --bin bootstrap_stage1.asm bootstrap_stage1.bin
 ;
-; Cargar en el emulador / hardware a dirección $6000 (24576 decimal).
-; Ejecutar desde BASIC con:
+; Load on the emulator / hardware at address $6000 (24576 decimal).
+; Run from BASIC with:
 ;   RANDOMIZE USR 24576
 ; ===========================================================================
 
@@ -35,49 +35,49 @@
 
 SD81_STAGE1:
 
-    di                          ; Interrupciones desactivadas
+    di                          ; Interrupts disabled
 
 	; --------------------------------------------------------------------------
-	; Asignar la direccion del framebuffer (HFILE)
+	; Set the framebuffer address (HFILE)
 	; high=2044 low=(2043)
 	;
-	
+
 	ld   hl, $C000
-	ld   ($07FB), hl 
-	
+	ld   ($07FB), hl
+
 	; --------------------------------------------------------------------------
     ; ------------------------------------------------------------------
-    ; Activar modo Superfast HiRes Spectrum
-    ; POKE 2045, 172  →  ld a, 172 / ld ($07FD), a
-    ; La FPGA del SD81 Booster interpreta esto como:
-    ;   modo 172 ($AC) = Spectrum 256x192 desde HFILE=$C000
+    ; Activate Superfast HiRes Spectrum mode
+    ; POKE 2045, 172  ->  ld a, 172 / ld ($07FD), a
+    ; The SD81 Booster's FPGA interprets this as:
+    ;   mode 172 ($AC) = Spectrum 256x192 from HFILE=$C000
     ; ------------------------------------------------------------------
     ld   a, 172
     ld   ($07FD), a
 
     ; ------------------------------------------------------------------
-    ; Desactivar IO mapeado en memoria
-    ; POKE 2056, 0  →  ld ($0808), a
-    ; Evita colisiones entre las instrucciones IN/OUT y el espacio de RAM
+    ; Disable memory-mapped IO
+    ; POKE 2056, 0  ->  ld ($0808), a
+    ; Avoids collisions between IN/OUT instructions and the RAM space
     ; ------------------------------------------------------------------
     xor  a
     ld   ($0808), a
 
     ; ------------------------------------------------------------------
-    ; Mapear bloque 0 ($0000-$1FFF) → página 8 del SD81
-    ; Puerto $E7: modo full 64 páginas, OUT (C), A con B=página, A=bloque
-    ; La página 8 contiene el binario compilado (vectors + stage 2 + runtime)
+    ; Map block 0 ($0000-$1FFF) -> SD81 page 8
+    ; Port $E7: full 64-page mode, OUT (C), A with B=page, A=block
+    ; Page 8 holds the compiled binary (vectors + stage 2 + runtime)
     ; ------------------------------------------------------------------
-    ld   b, 8                   ; página SD81 destino (8 = primera página de usuario)
-    ld   a, 0                   ; bloque Z80 a reasignar (bloque 0 = $0000-$1FFF)
-    ld   c, $E7                 ; puerto de paginación SD81
-    out  (c), a                 ; mapear  (B=página, A=bloque)
+    ld   b, 8                   ; destination SD81 page (8 = first user page)
+    ld   a, 0                   ; Z80 block to remap (block 0 = $0000-$1FFF)
+    ld   c, $E7                 ; SD81 paging port
+    out  (c), a                 ; map  (B=page, A=block)
 
     ; ------------------------------------------------------------------
-    ; Saltar al stage 2 en la RAM recién mapeada
-    ; A partir de aquí el bloque 0 contiene la página 8:
-    ;   $0000-$0067  vectores RST
-    ;   $0100        __START_PROGRAM (inicio del stage 2)
+    ; Jump to stage 2 in the freshly mapped RAM
+    ; From here on, block 0 holds page 8:
+    ;   $0000-$0067  RST vectors
+    ;   $0100        __START_PROGRAM (stage 2's entry point)
     ; ------------------------------------------------------------------
     jp   $0100
 
