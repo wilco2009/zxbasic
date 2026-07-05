@@ -77,3 +77,12 @@ fuentes de depuración/diagnóstico usados durante el desarrollo del port
 viven en un repositorio complementario, no en este. Ver
 [USO.md](USO.md) para el flujo completo de compilar → empaquetar →
 cargar.
+
+## Repositorios relacionados
+
+- **[SD81 Booster](https://codeberg.org/Retrostuff/SD81-Booster)** —
+  firmware/hardware de la interfaz para la que se ha hecho este port.
+- **[EightyOne Cross-platform](https://codeberg.org/wilco2009/EightyOne-CrossPlatform)** —
+  emulador usado durante el desarrollo para probar sin hardware real.
+- **[CPM_SD81](https://codeberg.org/wilco2009/CPM_SD81)** — CP/M sobre
+  el SD81 Booster.
