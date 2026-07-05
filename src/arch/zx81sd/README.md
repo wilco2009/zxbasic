@@ -37,10 +37,10 @@ mapper...) and LOAD/SAVE/VERIFY...CODE against SD.
 
 Pending / not audited, remaining screen utilities in the shared stdlib:
 
-- `winscroll.bas`: audited — no ROM dependency, no override needed
-  (like `scroll.bas` before its fix, or `4inarow.bas`). Compiles clean
-  and verified by simulation (`examples/winscroll.bas`, no source
-  changes needed); pending confirmation on real hardware.
+- `winscroll.bas`: **confirmed working on real hardware** — no ROM
+  dependency, no override needed (like `scroll.bas` before its fix, or
+  `4inarow.bas`). No source changes needed either
+  (`examples/winscroll.bas` as-is).
 - `putchars.bas`/`puttile.bas`: not audited or tested. A quick look at
   the source finds no Spectrum ROM/sysvar addresses (`putChars` fills a
   rectangle of characters, `putTile` places a 16×16 px tile), so

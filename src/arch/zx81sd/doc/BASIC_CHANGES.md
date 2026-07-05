@@ -183,8 +183,8 @@ textual `#include` — it doesn't risk the `INCBIN`-inline bug described
 in [PRECAUTIONS.md](PRECAUTIONS.md) section 8). No zx81sd override was
 needed; the shared zx48k library is used as-is via the normal fallback
 mechanism. Verified by simulation (screen and attribute area fully
-touched, clean `HALT` at `__END_PROGRAM`, no illegal writes). Pending
-confirmation on real hardware.
+touched, clean `HALT` at `__END_PROGRAM`, no illegal writes).
+**Confirmed working on real hardware.**
 
 ---
 
