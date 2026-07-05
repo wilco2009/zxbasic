@@ -48,12 +48,10 @@ Pending / not audited, remaining screen utilities in the shared stdlib:
 - `screen.bas`: **does depend on the ROM** (`$2538`/`$5C65`/`$19E8`,
   fixed Spectrum routines and sysvars to read back a screen character)
   — will need a real override, not just an audit.
-- `print42.bas`/`print64.bas`: **ported** (full override in `stdlib/`)
-  — fixed sysvars → zx81sd equivalents, and the screen/attribute base
-  constants are patched at runtime (self-modifying code) instead of
-  being fixed. Verified by simulation (legible pixel-by-pixel text, no
-  memory corruption); pending confirmation on the emulator/real
-  hardware.
+- `print42.bas`/`print64.bas`: **ported and confirmed working on real
+  hardware** — fixed sysvars → zx81sd equivalents, and the screen/
+  attribute base constants are patched at runtime (self-modifying
+  code) instead of being fixed.
 
 See [doc/BASIC_CHANGES.md](doc/BASIC_CHANGES.md) for the general
 pattern behind this kind of fix. The `maskedsprites.bas`/MSFS port

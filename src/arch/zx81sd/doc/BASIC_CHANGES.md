@@ -324,8 +324,7 @@ Verified by simulation (the usual Python harness): both test strings
 (`tests_debug/print4264.bas`, companion repository) render legibly
 pixel by pixel at the expected position, with no writes outside
 screen/attributes/the file's own variables, and the program reaches its
-normal `__END_PROGRAM`/`HALT`. Still pending confirmation on the
-emulator/real hardware.
+normal `__END_PROGRAM`/`HALT`. **Confirmed working on real hardware.**
 
 ---
 
