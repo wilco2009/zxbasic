@@ -68,10 +68,17 @@ class Backend(Z80Backend):
         super().init()
 
         OPTIONS(Action.ADD_IF_NOT_DEFINED, name="org", type=int, default=_ORG)
-        OPTIONS(Action.ADD_IF_NOT_DEFINED, name="heap_size", type=int,
-                default=_HEAP_SIZE, ignore_none=True)
-        OPTIONS(Action.ADD_IF_NOT_DEFINED, name="heap_address", type=int,
-                default=_HEAP_ADDR, ignore_none=False)
+
+        # El backend Z80 generico (super().init(), justo arriba) ya registra
+        # "heap_size" (4768) y "heap_address" (None) con ADD_IF_NOT_DEFINED,
+        # asi que un ADD_IF_NOT_DEFINED aqui seria un no-op y el heap acababa
+        # reservado inline (DEFS) con 4768 bytes dentro de la zona ejecutable.
+        # Se asigna directamente para que el heap viva en la zona de datos
+        # $8100-$BFFF; los flags --heap-address/-H de la CLI se aplican
+        # despues y siguen pudiendo sobreescribir estos valores.
+        OPTIONS.heap_size = _HEAP_SIZE
+        OPTIONS.heap_address = _HEAP_ADDR
+
         OPTIONS(Action.ADD_IF_NOT_DEFINED, name="heap_start_label", type=str,
                 default=f"{NAMESPACE}.ZXBASIC_MEM_HEAP")
         OPTIONS(Action.ADD_IF_NOT_DEFINED, name="heap_size_label", type=str,

@@ -287,7 +287,7 @@ end function
 
 ' Recibe un stream y lo imprime linea a linea (para listados largos:
 ' DIR, TYPE, FREE_TXT). Devuelve el status.
-function _McuStreamPrint() as ubyte
+function _McuStreamPrint(newLine as ubyte) as ubyte
     dim c as ubyte
     dim line as string
     line = ""
@@ -298,14 +298,21 @@ function _McuStreamPrint() as ubyte
             exit do
         end if
         if c = $76 then
-            print line
+			' print
+			print line;
+			if len(line) <> 32 then print
             line = ""
         else
             line = line + chr(_McuFromZx(c))
+			'print c; " ";
         end if
     loop
     if len(line) > 0 then
-        print line
+		if newLine=1 then
+			print line
+		else
+			print line;
+		end if
     end if
     return McuRecv()
 end function
@@ -424,20 +431,20 @@ end function
 function McuTypePrint(fname as string) as ubyte
     McuSend(11)
     _McuSendPascal(McuZxStr(fname))
-    return _McuStreamPrint()
+    return _McuStreamPrint(1)
 end function
 
 ' Cmd 12: imprime el listado de un directorio (admite comodines).
 function McuDirPrint(mask as string) as ubyte
     McuSend(12)
     _McuSendPascal(McuZxStr(mask))
-    return _McuStreamPrint()
+    return _McuStreamPrint(0)
 end function
 
 ' Cmd 14: imprime el espacio total/libre de la SD como texto.
 function McuFreeTxtPrint() as ubyte
     McuSend(14)
-    return _McuStreamPrint()
+    return _McuStreamPrint(1)
 end function
 
 ' Cmd 15: espacio total y libre en KB -> McuFreeTotalKb / McuFreeFreeKb.

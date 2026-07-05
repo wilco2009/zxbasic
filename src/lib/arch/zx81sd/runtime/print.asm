@@ -418,7 +418,12 @@ __ITALIC:
 #ifndef __ZXB_DISABLE_SCROLL
     LOCAL __SCROLL_SCR
 
-#  ifdef __ZXB_ENABLE_BUFFER_SCROLL
+; En zx81sd el scroll se hace SIEMPRE con la implementacion por buffer:
+; la variante del zx48k ("__SCROLL_SCR EQU 0DFEh") delega en la rutina
+; CL-SC-ALL de la ROM del Spectrum, que aqui no esta mapeada — ese CALL
+; ejecutaria codigo arbitrario del programa (bug cazado con flights.bas:
+; el primer PRINT que desbordaba la pantalla saltaba a la linea BASIC
+; que casualmente ocupara $0DFE).
 __SCROLL_SCR:  ;; Scrolls screen and attrs 1 row up
     ld de, (SCREEN_ADDR)
     ld b, 3
@@ -487,9 +492,6 @@ __SCROLL_SCR:  ;; Scrolls screen and attrs 1 row up
     ld bc, 31
     ldir
     ret
-#  else
-__SCROLL_SCR EQU 0DFEh  ; Use ROM SCROLL
-#  endif
 #endif
 
 
