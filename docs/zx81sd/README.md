@@ -35,13 +35,29 @@ beeper), teclado (INKEY$/INPUT sobre el teclado físico del ZX81),
 joystick, la librería MCU completa (ficheros, RTC/BAT, voz, mapeador de
 memoria...) y LOAD/SAVE/VERIFY...CODE contra SD.
 
-Pendiente / sin auditar: el resto de utilidades de pantalla de la
-stdlib compartida (`winscroll`, `putchars`, `puttile`, `screen`,
-`print42/64`...) — puede que alguna dependa de la ROM del Spectrum
-igual que `scroll.bas` (ya arreglado, ver [CAMBIOS_BASIC.md](CAMBIOS_BASIC.md)).
-El port de `maskedsprites.bas`/MSFS (sprites enmascarados sobre el
-mapeador de memoria) también está en proceso, aún sin terminar de
-funcionar bien.
+Pendiente / sin auditar, resto de utilidades de pantalla de la stdlib
+compartida:
+
+- `winscroll.bas`: se cree ya portado y probado, pero sin confirmar con
+  una auditoría formal (no hay override en `zx81sd/stdlib/` — de ser
+  cierto, es porque no necesitaba ninguno, como `scroll.bas` antes del
+  fix o `4inarow.bas`).
+- `putchars.bas`/`puttile.bas`: sin auditar ni probar. Un vistazo rápido
+  al fuente no encuentra direcciones de ROM/sysvars del Spectrum
+  (`putChars` rellena un rectángulo de caracteres, `putTile` coloca un
+  tile de 16×16 px), así que son buenos candidatos a funcionar sin
+  cambios, pero no está confirmado.
+- `screen.bas`: **sí depende de la ROM** (`$2538`/`$5C65`/`$19E8`,
+  rutinas y sysvars fijas del Spectrum para leer de vuelta un carácter
+  de pantalla) — necesitará un override real, no solo una auditoría.
+- `print42.bas`/`print64.bas`: **sí dependen de sysvars del Spectrum**
+  (`$5C7B` = UDG, `23693` = ATTR_P) — confirmado pendiente de migrar,
+  próximo objetivo.
+
+Ver [CAMBIOS_BASIC.md](CAMBIOS_BASIC.md) para el patrón general de este
+tipo de fix. El port de `maskedsprites.bas`/MSFS (sprites enmascarados
+sobre el mapeador de memoria) también está en proceso, aún sin terminar
+de funcionar bien.
 
 ## Documentación
 
