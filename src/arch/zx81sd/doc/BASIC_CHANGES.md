@@ -166,6 +166,28 @@ implementation, same register contract as the ROM — see
 
 ---
 
+## 5b. `examples/winscroll.bas` — NO source changes, no library override needed either
+
+Compiles with default flags:
+
+```
+python -m src.zxbc.zxbc winscroll.bas --arch zx81sd -o winscroll.bin
+```
+
+Unlike `scroll.bas`, `winscroll.bas` (character-cell window scroll:
+`WinScrollRight/Left/Up/Down(row, col, width, height)`) has **no ROM
+dependency at all** — it computes everything from `SCREEN_ADDR`/
+`SCREEN_ATTR_ADDR` (read dynamically, not hardcoded) and only pulls in
+`sysvars.asm` via `#require` (a link-time dependency tag, not a
+textual `#include` — it doesn't risk the `INCBIN`-inline bug described
+in [PRECAUTIONS.md](PRECAUTIONS.md) section 8). No zx81sd override was
+needed; the shared zx48k library is used as-is via the normal fallback
+mechanism. Verified by simulation (screen and attribute area fully
+touched, clean `HALT` at `__END_PROGRAM`, no illegal writes). Pending
+confirmation on real hardware.
+
+---
+
 ## 6. `examples/maskedsprites.bas` → `examples/sd81/maskedsprites_sd81.bas`
 
 **In progress — still not fully working.**
@@ -382,6 +404,7 @@ documented in the library.
 | flights.bas | `flights_sd81.bas` | 3 kinds of change (POKE removed, 4× PEEK COORDS, 8× key case) | none special |
 | 4inarow.bas | no copy needed | none | none special |
 | scroll.bas | no copy needed | none (the fix was in the `stdlib/scroll.bas` library) | none special |
+| winscroll.bas | no copy needed | none (no library override needed either — no ROM dependency) | none special |
 | maskedsprites.bas | `maskedsprites_sd81.bas` | `WaitForNewFrame` rewritten (EI+HALT → VSYNC_TICK); `cb/maskedsprites.bas` library ported to the mapper (block 7) — **in progress, still not fully working** | none special |
 | pong.bas (unofficial) | `pong.bas` in `examples/sd81/` | 1 ASM line (VSYNC_TICK namespace) | none special |
 | block7test.bas (unofficial) | `block7test.bas` in `examples/sd81/` | n/a (written directly for zx81sd) | none special |
