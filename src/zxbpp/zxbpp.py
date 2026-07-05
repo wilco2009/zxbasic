@@ -171,9 +171,7 @@ def set_include_path():
     # zx81sd paths take priority: its own files shadow zx48k equivalents.
     if "zx81sd" in INCLUDE_MAP:
         zx48k_pwd = get_include_path("zx48k")
-        INCLUDE_MAP["zx81sd"].extend(
-            [os.path.join(zx48k_pwd, "stdlib"), os.path.join(zx48k_pwd, "runtime")]
-        )
+        INCLUDE_MAP["zx81sd"].extend([os.path.join(zx48k_pwd, "stdlib"), os.path.join(zx48k_pwd, "runtime")])
 
     INCLUDEPATH = INCLUDE_MAP.get(config.OPTIONS.architecture, [])
 
