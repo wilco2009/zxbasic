@@ -29,10 +29,10 @@ import math
 import re
 import struct
 
-BLANK = "\x01"          # internal marker: position already consumed
+BLANK = "\x01"  # internal marker: position already consumed
 NEWLINE = 0x76
-NUMBER_MARK = 0x7E       # precedes the 5 bytes of an embedded number
-DOUBLE_QUOTE = 0xC0      # escaped quote ("") inside a string
+NUMBER_MARK = 0x7E  # precedes the 5 bytes of an embedded number
+DOUBLE_QUOTE = 0xC0  # escaped quote ("") inside a string
 
 # Standard ZX81 tokens (from zx81BasicLoader::ExtractTokens, without
 # "alternate spelling" variants or ZXpand extensions)
@@ -108,14 +108,29 @@ TOKENS = {
 def ascii_to_zx(c: str) -> int:
     """Port of zx81BasicLoader::AsciiToZX."""
     if c.isalpha():
-        return (ord(c.upper()) - ord('A')) + 38
+        return (ord(c.upper()) - ord("A")) + 38
     if c.isdigit():
-        return (ord(c) - ord('0')) + 28
+        return (ord(c) - ord("0")) + 28
 
     table = {
-        ' ': 0, '"': 11, '#': 12, '$': 13, ':': 14, '?': 15,
-        '(': 16, ')': 17, '-': 22, '+': 21, '*': 23, '/': 24,
-        '=': 20, '>': 18, '<': 19, ';': 25, ',': 26, '.': 27,
+        " ": 0,
+        '"': 11,
+        "#": 12,
+        "$": 13,
+        ":": 14,
+        "?": 15,
+        "(": 16,
+        ")": 17,
+        "-": 22,
+        "+": 21,
+        "*": 23,
+        "/": 24,
+        "=": 20,
+        ">": 18,
+        "<": 19,
+        ";": 25,
+        ",": 26,
+        ".": 27,
     }
     if c in table:
         return table[c]
@@ -133,23 +148,25 @@ def zx81_float(value: float) -> bytes:
         if neg:
             value = -value
 
-        exponent = int(math.floor(1e-12 + (math.log(value) / math.log(2.0))))
+        exponent = math.floor(1e-12 + (math.log(value) / math.log(2.0)))
         if exponent < -129 or exponent > 126:
             raise OverflowError("Number out of range")
 
-        mantissa_val = (value / (2.0 ** exponent)) - 1
+        mantissa_val = (value / (2.0**exponent)) - 1
         mantissa_val *= 0x80000000
-        mantissa = int(math.floor(mantissa_val))
+        mantissa = math.floor(mantissa_val)
 
         exponent += 129
 
-    return bytes([
-        exponent & 0xFF,
-        (mantissa >> 24) & 0xFF,
-        (mantissa >> 16) & 0xFF,
-        (mantissa >> 8) & 0xFF,
-        mantissa & 0xFF,
-    ])
+    return bytes(
+        [
+            exponent & 0xFF,
+            (mantissa >> 24) & 0xFF,
+            (mantissa >> 16) & 0xFF,
+            (mantissa >> 8) & 0xFF,
+            mantissa & 0xFF,
+        ]
+    )
 
 
 class _Line:
@@ -163,13 +180,13 @@ class _Line:
     """
 
     def __init__(self, text: str):
-        content = " " + text            # ReadLine always prepends a space
+        content = " " + text  # ReadLine always prepends a space
         self.n = len(content)
-        self.buf = list(content) + [BLANK]      # +1 safety slot
+        self.buf = list(content) + [BLANK]  # +1 safety slot
         self.out = [BLANK] * (self.n + 1)
         self.populated = [False] * (self.n + 1)
         # BlankLineStart: no embedded line number, leaves 1 real space
-        self.buf[0] = ' '
+        self.buf[0] = " "
 
 
 def _mask_copy(chars: list) -> list:
@@ -196,7 +213,7 @@ def _mask_out_strings(tokenised: list):
         elif within:
             tokenised[i] = BLANK
         else:
-            rest = "".join(tokenised[i + 1:])
+            rest = "".join(tokenised[i + 1 :])
             nq = rest.find('"')
             if nq == -1:
                 return
@@ -264,16 +281,18 @@ def _do_tokenise(line: _Line, tokenised: list):
         start_char = token[0]
         end_char = token[-1]
 
-        token_begins_with_space = start_char == ' '
+        token_begins_with_space = start_char == " "
         token_begins_with_alpha = start_char.isalpha()
-        token_ends_with_space = end_char == ' '
+        token_ends_with_space = end_char == " "
         token_ends_with_alpha = end_char.isalpha()
 
         len_adjustment = 0
         eff_len_token = len_token
-        if end_char in ('(', ')', '!', '"', "'", ',', ';', ':') or \
-           (end_char == '#' and (len_token < 2 or token[-2] != ' ')) or \
-           (end_char == '*' and token != "**"):
+        if (
+            end_char in ("(", ")", "!", '"', "'", ",", ";", ":")
+            or (end_char == "#" and (len_token < 2 or token[-2] != " "))
+            or (end_char == "*" and token != "**")
+        ):
             eff_len_token -= 1
 
         guard = 0
@@ -287,16 +306,24 @@ def _do_tokenise(line: _Line, tokenised: list):
             if pos == -1:
                 break
 
-            prev_ok = (token_begins_with_space or not token_begins_with_alpha
-                       or (pos == 0) or (not tokenised[pos - 1].isalnum()))
+            prev_ok = (
+                token_begins_with_space
+                or not token_begins_with_alpha
+                or (pos == 0)
+                or (not tokenised[pos - 1].isalnum())
+            )
             end_pos = pos + eff_len_token
-            next_ok = (token_ends_with_space or not token_ends_with_alpha
-                       or (end_pos >= len(tokenised)) or (not tokenised[end_pos].isalnum()))
+            next_ok = (
+                token_ends_with_space
+                or not token_ends_with_alpha
+                or (end_pos >= len(tokenised))
+                or (not tokenised[end_pos].isalnum())
+            )
 
             if not (prev_ok and next_ok):
                 # Match glued to an identifier: not the token, "break"
                 # it locally so the search keeps going further ahead.
-                tokenised[pos] = '\x02'
+                tokenised[pos] = "\x02"
                 continue
 
             start_offset = 1 if token_begins_with_space else 0
@@ -335,20 +362,20 @@ def _start_of_number(line: _Line, tokenised: list, index: int) -> bool:
     preceding it, so that behavior is replicated here (simpler and more
     correct for this case).
     """
-    if not (line.buf[index] == '.' or line.buf[index].isdigit()):
+    if not (line.buf[index] == "." or line.buf[index].isdigit()):
         return False
 
     if index == 0:
         return True
 
     prev = line.buf[index - 1]
-    if prev == ' ':
+    if prev == " ":
         return True
 
     return not (prev.isalpha() or prev.isdigit())
 
 
-_NUMBER_RE = re.compile(r'[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?')
+_NUMBER_RE = re.compile(r"[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?")
 
 
 def _output_embedded_number(line: _Line, index: int, out: bytearray) -> int:
@@ -370,7 +397,7 @@ def _output_embedded_number(line: _Line, index: int, out: bytearray) -> int:
 
     with_spaces_index = 0
     for _ in range(number_len_no_spaces):
-        while line.buf[index + with_spaces_index] in (' ', BLANK):
+        while line.buf[index + with_spaces_index] in (" ", BLANK):
             with_spaces_index += 1
         with_spaces_index += 1
 
@@ -383,8 +410,8 @@ def _output_embedded_number(line: _Line, index: int, out: bytearray) -> int:
             out.append(chr_code)
         i += 1
 
-    while i < n and line.buf[i] == ' ':
-        out.append(ascii_to_zx(' '))
+    while i < n and line.buf[i] == " ":
+        out.append(ascii_to_zx(" "))
         i += 1
 
     out.append(NUMBER_MARK)
@@ -406,7 +433,7 @@ def process_line_body(text: str) -> bytes:
     # (without line.buf's safety slot) + one extra real space to
     # detect tokens with no closing space in the original text.
     # Length n+1, same as line.buf, so indices stay aligned.
-    tokenised = list(line.buf[:n]) + [' ']
+    tokenised = list(line.buf[:n]) + [" "]
 
     _mask_out_strings(tokenised)
     _mask_out_rem_contents(tokenised)
@@ -434,7 +461,7 @@ def process_line_body(text: str) -> bytes:
 
 def encode_line(line_number: int, text: str) -> bytes:
     body = process_line_body(text) + bytes([NEWLINE])
-    return struct.pack('>H', line_number) + struct.pack('<H', len(body)) + body
+    return struct.pack(">H", line_number) + struct.pack("<H", len(body)) + body
 
 
 def encode_program(lines: list) -> bytes:
@@ -460,40 +487,40 @@ def build_p_file(lines: list) -> bytes:
         data[offset + 1] = (w >> 8) & 0xFF
 
     # --- OutputStartOfProgramData ---
-    out_byte(0x00)          # VERSN
-    out_word(0x0000)        # E_PPC
-    out_word(0x0000)        # D_FILE
-    out_word(0x0000)        # DF_CC
-    out_word(0x0000)        # VARS
-    out_word(0x0000)        # DEST
-    out_word(0x0000)        # E_LINE
-    out_word(0x0000)        # CH_ADD
-    out_word(0x0000)        # X_PTR
-    out_word(0x0000)        # STKBOT
-    out_word(0x0000)        # STKEND
-    out_byte(0x00)          # BERG
-    out_word(0x405D)        # MEM
-    out_byte(0x00)          # SPARE1
-    out_byte(0x02)          # DF_SZ
-    out_word(0x0000)        # S_TOP
-    out_word(0xFFFF)        # LAST_K
-    out_byte(0x00)          # DBOUNC
-    out_byte(0x37)          # MARGIN
-    out_word(0x0000)        # NXTLIN
-    out_word(0x0000)        # OLDPPC
-    out_byte(0x00)          # FLAGX
-    out_word(0x0000)        # STRLEN
-    out_word(0x0C8D)        # T_ADDR
-    out_word(0x4321)        # SEED
-    out_word(0xE6E0)        # FRAMES
-    out_word(0x0000)        # COORDS
-    out_byte(0xBC)          # PR_CC
-    out_word(0x1821)        # S_POSN
-    out_byte(0x40)          # CDFLAG
+    out_byte(0x00)  # VERSN
+    out_word(0x0000)  # E_PPC
+    out_word(0x0000)  # D_FILE
+    out_word(0x0000)  # DF_CC
+    out_word(0x0000)  # VARS
+    out_word(0x0000)  # DEST
+    out_word(0x0000)  # E_LINE
+    out_word(0x0000)  # CH_ADD
+    out_word(0x0000)  # X_PTR
+    out_word(0x0000)  # STKBOT
+    out_word(0x0000)  # STKEND
+    out_byte(0x00)  # BERG
+    out_word(0x405D)  # MEM
+    out_byte(0x00)  # SPARE1
+    out_byte(0x02)  # DF_SZ
+    out_word(0x0000)  # S_TOP
+    out_word(0xFFFF)  # LAST_K
+    out_byte(0x00)  # DBOUNC
+    out_byte(0x37)  # MARGIN
+    out_word(0x0000)  # NXTLIN
+    out_word(0x0000)  # OLDPPC
+    out_byte(0x00)  # FLAGX
+    out_word(0x0000)  # STRLEN
+    out_word(0x0C8D)  # T_ADDR
+    out_word(0x4321)  # SEED
+    out_word(0xE6E0)  # FRAMES
+    out_word(0x0000)  # COORDS
+    out_byte(0xBC)  # PR_CC
+    out_word(0x1821)  # S_POSN
+    out_byte(0x40)  # CDFLAG
     data.extend([0x00] * 32)  # PRBUFF (32 empty bytes)
-    out_byte(0x76)            # PRBUFF (byte 33, NEWLINE)
+    out_byte(0x76)  # PRBUFF (byte 33, NEWLINE)
     data.extend([0x00] * 30)  # MEMBOT
-    out_word(0x0000)        # SPARE
+    out_word(0x0000)  # SPARE
 
     # --- BASIC lines ---
     for line_number, text in lines:
@@ -510,14 +537,14 @@ def build_p_file(lines: list) -> bytes:
 
     eline_address = START_OF_RAM + len(data)
 
-    change_word(3, dfile_address)        # D_FILE
-    change_word(5, dfile_address + 1)    # DF_CC
-    change_word(7, vars_address)         # VARS
-    change_word(11, vars_address + 1)    # E_LINE
-    change_word(13, vars_address + 5)    # CH_ADD
-    change_word(17, eline_address + 5)   # STKBOT
-    change_word(19, eline_address + 5)   # STKEND
-    change_word(32, vars_address)        # NXTLIN (= VARS => no autorun)
+    change_word(3, dfile_address)  # D_FILE
+    change_word(5, dfile_address + 1)  # DF_CC
+    change_word(7, vars_address)  # VARS
+    change_word(11, vars_address + 1)  # E_LINE
+    change_word(13, vars_address + 5)  # CH_ADD
+    change_word(17, eline_address + 5)  # STKBOT
+    change_word(19, eline_address + 5)  # STKEND
+    change_word(32, vars_address)  # NXTLIN (= VARS => no autorun)
 
     return bytes(data)
 
@@ -545,6 +572,6 @@ if __name__ == "__main__":
 
     print(f"Generated {out_path} ({len(p_data)} bytes)")
     for i in range(0, len(p_data), 16):
-        chunk = p_data[i:i + 16]
+        chunk = p_data[i : i + 16]
         hexpart = " ".join(f"{b:02X}" for b in chunk)
         print(f"{i:04X}: {hexpart}")

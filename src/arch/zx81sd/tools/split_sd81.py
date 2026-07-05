@@ -62,17 +62,17 @@ Example:
   -> TEST_SD81.P           (the same listing, tokenized)
 """
 
-import sys
 import os
+import sys
 
 from zx81_p_loader import build_p_file
 
-PAGE_SIZE = 8192        # 8KB per page
-FIRST_PAGE = 8          # SD81 page assigned to block 0
-CLEANUP_PAGE = 63       # neutral page: forces full-paging mode (64 pages)
+PAGE_SIZE = 8192  # 8KB per page
+FIRST_PAGE = 8  # SD81 page assigned to block 0
+CLEANUP_PAGE = 63  # neutral page: forces full-paging mode (64 pages)
 BOOT1_FILE = "BOOT1.BIN"
-BOOT1_ADDR = 24576      # $6000
-CLEAR_ADDR = 24575      # protects BOOT1.BIN (reserved right below it)
+BOOT1_ADDR = 24576  # $6000
+CLEAR_ADDR = 24575  # protects BOOT1.BIN (reserved right below it)
 LOAD_WINDOW_ADDR = 57344  # $E000, block 7's window
 
 
@@ -148,6 +148,7 @@ def main():
     # non-representable characters). Fail early and clearly instead of
     # blowing up later while tokenizing the loader.
     from zx81_p_loader import ascii_to_zx
+
     for c in output_base:
         try:
             ascii_to_zx(c)
@@ -162,7 +163,7 @@ def main():
 
     size = os.path.getsize(input_path)
     num_pages = (size + PAGE_SIZE - 1) // PAGE_SIZE
-    print(f"Binary: {input_path}  ({size} bytes, {size/1024:.1f} KB, {num_pages} page(s))")
+    print(f"Binary: {input_path}  ({size} bytes, {size / 1024:.1f} KB, {num_pages} page(s))")
     print(f"Splitting into {PAGE_SIZE}-byte pages (starting SD81 page = {FIRST_PAGE})...")
     print()
 

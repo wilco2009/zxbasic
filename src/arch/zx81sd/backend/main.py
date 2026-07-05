@@ -27,11 +27,11 @@ from .generic import _end
 #   $D800-$DAFF   screen attributes
 #   $E000-$FFFF   block 7 — data banking (maps, sprites...)
 
-_ORG = 0x0000           # the binary starts at $0000 (vectors.asm pads up to $0100)
+_ORG = 0x0000  # the binary starts at $0000 (vectors.asm pads up to $0100)
 _STAGE2_ENTRY = 0x0100  # stage 2 bootstrap's entry point
 
-_HEAP_ADDR = 0x8100     # heap in the data area ($8100-$BFFF)
-_HEAP_SIZE = 0x3EFF     # ~15.75 KB
+_HEAP_ADDR = 0x8100  # heap in the data area ($8100-$BFFF)
+_HEAP_SIZE = 0x3EFF  # ~15.75 KB
 
 # SD81 pages assigned to each block (loaded by BASIC before the jump)
 #   Page 8  -> block 0 ($0000-$1FFF) <- stage 1 only maps this one
@@ -42,7 +42,7 @@ _HEAP_SIZE = 0x3EFF     # ~15.75 KB
 #   Page 13 -> block 5 ($A000-$BFFF) ┘
 
 _PAGE_MAP = [
-    (1, 9),   # block 1 -> page 9
+    (1, 9),  # block 1 -> page 9
     (2, 10),  # block 2 -> page 10
     (3, 11),  # block 3 -> page 11
     (4, 12),  # block 4 -> page 12
@@ -50,7 +50,7 @@ _PAGE_MAP = [
 ]
 
 _SD81_PAGE_PORT = 0xE7  # memory mapper port (full mode: OUT (C), A)
-_STACK_TOP = 0x7FFF     # stack at the top of the executable area
+_STACK_TOP = 0x7FFF  # stack at the top of the executable area
 
 
 def _map_block(block: int, page: int) -> list[str]:
@@ -80,12 +80,9 @@ class Backend(Z80Backend):
         OPTIONS.heap_size = _HEAP_SIZE
         OPTIONS.heap_address = _HEAP_ADDR
 
-        OPTIONS(Action.ADD_IF_NOT_DEFINED, name="heap_start_label", type=str,
-                default=f"{NAMESPACE}.ZXBASIC_MEM_HEAP")
-        OPTIONS(Action.ADD_IF_NOT_DEFINED, name="heap_size_label", type=str,
-                default=f"{NAMESPACE}.ZXBASIC_HEAP_SIZE")
-        OPTIONS(Action.ADD_IF_NOT_DEFINED, name="headerless", type=bool,
-                default=False, ignore_none=True)
+        OPTIONS(Action.ADD_IF_NOT_DEFINED, name="heap_start_label", type=str, default=f"{NAMESPACE}.ZXBASIC_MEM_HEAP")
+        OPTIONS(Action.ADD_IF_NOT_DEFINED, name="heap_size_label", type=str, default=f"{NAMESPACE}.ZXBASIC_HEAP_SIZE")
+        OPTIONS(Action.ADD_IF_NOT_DEFINED, name="headerless", type=bool, default=False, ignore_none=True)
 
         self._QUAD_TABLE.update(
             {
@@ -119,43 +116,32 @@ class Backend(Z80Backend):
         heap_init = [f"{common.DATA_LABEL}:"]
 
         if common.REQUIRES.intersection(common.MEMINITS) or f"{NAMESPACE}.__MEM_INIT" in common.INITS:
-            heap_init.append(
-                "; Defines HEAP SIZE\n"
-                + OPTIONS.heap_size_label + " EQU " + str(OPTIONS.heap_size)
-            )
+            heap_init.append("; Defines HEAP SIZE\n" + OPTIONS.heap_size_label + " EQU " + str(OPTIONS.heap_size))
             if OPTIONS.heap_address is None:
                 heap_init.append(OPTIONS.heap_start_label + ":")
                 heap_init.append(f"DEFS {OPTIONS.heap_size}")
             else:
-                heap_init.append(
-                    "; Defines HEAP ADDRESS\n"
-                    + OPTIONS.heap_start_label + f" EQU {OPTIONS.heap_address}"
-                )
+                heap_init.append("; Defines HEAP ADDRESS\n" + OPTIONS.heap_start_label + f" EQU {OPTIONS.heap_address}")
 
         heap_init.append(
             "; Defines USER DATA Length in bytes\n"
             + f"{NAMESPACE}.ZXBASIC_USER_DATA_LEN"
             + f" EQU {common.DATA_END_LABEL} - {common.DATA_LABEL}"
         )
-        heap_init.append(
-            f"{NAMESPACE}.__LABEL__.ZXBASIC_USER_DATA_LEN"
-            + f" EQU {NAMESPACE}.ZXBASIC_USER_DATA_LEN"
-        )
-        heap_init.append(
-            f"{NAMESPACE}.__LABEL__.ZXBASIC_USER_DATA EQU {common.DATA_LABEL}"
-        )
+        heap_init.append(f"{NAMESPACE}.__LABEL__.ZXBASIC_USER_DATA_LEN" + f" EQU {NAMESPACE}.ZXBASIC_USER_DATA_LEN")
+        heap_init.append(f"{NAMESPACE}.__LABEL__.ZXBASIC_USER_DATA EQU {common.DATA_LABEL}")
 
         # -- RST vector table ($0000-$00FF) ---------------------------------
         # Must be the very first thing in the binary. Each RST takes 8 bytes.
         # An absolute org is used for every entry: the assembler fills the
         # gaps with zeros, which is correct for a non-executable area.
         output = ["org $0000"]
-        output.append("jp $0100")      # $0000: reset / RST 0 -> stage 2
+        output.append("jp $0100")  # $0000: reset / RST 0 -> stage 2
         output.append("org $0008")
-        output.append("di")            # $0008: RST $08 (Spectrum error handler)
+        output.append("di")  # $0008: RST $08 (Spectrum error handler)
         output.append("halt")
         output.append("org $0010")
-        output.append("di")            # $0010-$0037: unused RSTs
+        output.append("di")  # $0010-$0037: unused RSTs
         output.append("halt")
         output.append("org $0018")
         output.append("di")
@@ -169,10 +155,10 @@ class Backend(Z80Backend):
         output.append("di")
         output.append("halt")
         output.append("org $0038")
-        output.append("di")            # $0038: RST $38 IM1 — permanent DI, never reached
+        output.append("di")  # $0038: RST $38 IM1 — permanent DI, never reached
         output.append("halt")
         output.append("org $0066")
-        output.append("retn")          # $0066: NMI disabled, but the vector must exist
+        output.append("retn")  # $0066: NMI disabled, but the vector must exist
 
         # -- Stage 2 bootstrap at $0100 ------------------------------------
         output.append(f"org {_STAGE2_ENTRY}")
