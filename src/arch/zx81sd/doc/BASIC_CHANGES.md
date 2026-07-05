@@ -223,6 +223,7 @@ that shifted the drawing up before the check ran. Moving the final
 prompt to row 20 fixed it; `paint()`/`putTile()` were correct all
 along. Verified with breakpoints right after each function returns
 (not just at the end) to catch this class of false negative.
+**Confirmed working on real hardware.**
 
 ---
 
