@@ -8,7 +8,8 @@ páginas y acceso a tarjeta SD).
 Todo el código específico de esta arquitectura vive exclusivamente bajo:
 
 ```
-src/arch/zx81sd/            (backend del compilador)
+src/arch/zx81sd/            (backend del compilador, esta documentación,
+                             y las herramientas de empaquetado en tools/)
 src/lib/arch/zx81sd/        (runtime ASM + stdlib BASIC)
 ```
 
@@ -57,45 +58,50 @@ compartida:
   simulación (texto legible píxel a píxel, sin corrupción de memoria);
   pendiente de confirmar en el emulador/hardware real.
 
-Ver [CAMBIOS_BASIC.md](CAMBIOS_BASIC.md) para el patrón general de este
-tipo de fix. El port de `maskedsprites.bas`/MSFS (sprites enmascarados
-sobre el mapeador de memoria) también está en proceso, aún sin terminar
-de funcionar bien.
+Ver [doc/CAMBIOS_BASIC.md](doc/CAMBIOS_BASIC.md) para el patrón general
+de este tipo de fix. El port de `maskedsprites.bas`/MSFS (sprites
+enmascarados sobre el mapeador de memoria) también está en proceso, aún
+sin terminar de funcionar bien.
 
 ## Documentación
 
-- **[USO.md](USO.md)** — cómo compilar un programa, empaquetarlo para
-  el ZX81 y cargarlo desde la tarjeta SD.
-- **[PRECAUCIONES.md](PRECAUCIONES.md)** — qué hay que tener en cuenta
-  al escribir o portar software para esta arquitectura (mapa de
+- **[doc/USO.md](doc/USO.md)** — cómo compilar un programa, empaquetarlo
+  para el ZX81 y cargarlo desde la tarjeta SD.
+- **[doc/PRECAUCIONES.md](doc/PRECAUCIONES.md)** — qué hay que tener en
+  cuenta al escribir o portar software para esta arquitectura (mapa de
   memoria, sysvars, teclado, cosas que NO existen aquí aunque existan
   en Spectrum).
-- **[CAMBIOS_BASIC.md](CAMBIOS_BASIC.md)** — qué cambios de fuente
-  BASIC hizo falta para portar cada ejemplo oficial de `examples/` (con
-  el porqué de cada uno). Punto de partida obligado antes de portar un
-  ejemplo nuevo: casi siempre es uno de los patrones ya catalogados
-  ahí.
-- **[MAP.md](MAP.md)** — bitácora técnica detallada de todos los bugs
-  encontrados y corregidos durante el port (runtime ASM, no fuentes
-  BASIC), con la traza de investigación de cada uno. Es el documento a
-  consultar cuando algo falla en tiempo de ejecución de forma que
-  recuerda a un bug ya resuelto.
+- **[doc/CAMBIOS_BASIC.md](doc/CAMBIOS_BASIC.md)** — qué cambios de
+  fuente BASIC hizo falta para portar cada ejemplo oficial de
+  `examples/` (con el porqué de cada uno). Punto de partida obligado
+  antes de portar un ejemplo nuevo: casi siempre es uno de los patrones
+  ya catalogados ahí.
+- **[doc/MAP.md](doc/MAP.md)** — bitácora técnica detallada de todos los
+  bugs encontrados y corregidos durante el port (runtime ASM, no
+  fuentes BASIC), con la traza de investigación de cada uno. Es el
+  documento a consultar cuando algo falla en tiempo de ejecución de
+  forma que recuerda a un bug ya resuelto.
 
 ## Ejemplos
 
 Los programas de ejemplo ya adaptados/probados para esta arquitectura
-están en [`examples/sd81/`](../../examples/sd81/) (junto al resto de
+están en [`examples/sd81/`](../../../examples/sd81/) (junto al resto de
 `examples/` del compilador). El detalle de qué hubo que tocar en cada
-uno, y por qué, está en [CAMBIOS_BASIC.md](CAMBIOS_BASIC.md).
+uno, y por qué, está en [doc/CAMBIOS_BASIC.md](doc/CAMBIOS_BASIC.md).
 
-## Herramientas de empaquetado y pruebas
+## Herramientas de empaquetado
 
-El empaquetador (`split_sd81.py`, parte binario plano en páginas de
-8KB + genera el cargador `.p` para el ZX81) y el conjunto más amplio de
-fuentes de depuración/diagnóstico usados durante el desarrollo del port
-viven en un repositorio complementario, no en este. Ver
-[USO.md](USO.md) para el flujo completo de compilar → empaquetar →
-cargar.
+[`tools/split_sd81.py`](tools/split_sd81.py) parte el binario plano
+generado por el compilador en páginas de 8KB y genera el cargador `.p`
+para el ZX81; [`tools/zx81_p_loader.py`](tools/zx81_p_loader.py) es el
+tokenizador BASIC que usa para generarlo; [`tools/boot1.asm`](tools/boot1.asm)/
+[`tools/boot1.bin`](tools/boot1.bin) son el cargador de segunda etapa
+(stage 1), fijo para todos los programas. Ver
+[doc/USO.md](doc/USO.md) para el flujo completo de compilar →
+empaquetar → cargar. El conjunto más amplio de fuentes de depuración/
+diagnóstico usados durante el desarrollo del port (no herramientas,
+solo pruebas puntuales) vive en un repositorio complementario privado,
+no en este.
 
 ## Repositorios relacionados
 

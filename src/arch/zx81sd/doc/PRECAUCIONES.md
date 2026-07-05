@@ -22,7 +22,7 @@ enteras en diagnosticarse por esto).
 
 - **Sysvars del Spectrum → sysvars de zx81sd**: la tabla de
   equivalencias está en
-  [`../../src/lib/arch/zx81sd/runtime/sysvars.asm`](../../src/lib/arch/zx81sd/runtime/sysvars.asm)
+  [`../../../lib/arch/zx81sd/runtime/sysvars.asm`](../../../lib/arch/zx81sd/runtime/sysvars.asm)
   (todas viven en `$8000+`, no en `$5C00+`). Ejemplos ya resueltos:
   `UDG` (23675 → `$8002`), `COORDS` (23677/23678 → `$8004`/`$8005`).
   Ver [CAMBIOS_BASIC.md](CAMBIOS_BASIC.md) para el detalle línea a

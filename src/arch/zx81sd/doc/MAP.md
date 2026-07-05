@@ -4,7 +4,7 @@ Nota sobre rutas: esta bitácora se escribió originalmente en el
 repositorio complementario de pruebas del port (donde los `.bas` citados
 vivían todos en un directorio `tests_debug/`). Los ejemplos que se
 consideraron suficientemente maduros para publicarse ya están copiados
-en este repositorio, en [`examples/sd81/`](../../examples/sd81/)
+en este repositorio, en [`examples/sd81/`](../../../../examples/sd81/)
 (`flights_sd81.bas`, `snake_sd81.bas`, `maskedsprites_sd81.bas`,
 `pong.bas`, `block7test.bas` — ver [CAMBIOS_BASIC.md](CAMBIOS_BASIC.md)).
 El resto de fuentes de depuración puntual mencionadas aquí (`diag1-6`,
@@ -14,9 +14,9 @@ repositorio complementario, no en este.
 Compilación de cada uno (desde la raíz de este repositorio):
 ```
 python -m src.zxbc.zxbc examples\sd81\<nombre>.bas --arch zx81sd -o <nombre>.bin
-python split_sd81.py <nombre>.bin <PREFIJO>
+python src\arch\zx81sd\tools\split_sd81.py <nombre>.bin <PREFIJO>
 ```
-(`split_sd81.py` vive en el repositorio complementario — ver [USO.md](USO.md).)
+(ver [USO.md](USO.md) para el detalle del empaquetador.)
 
 | Fuente                | Prefijo SD81 | Qué prueba                                                        | Resultado obtenido |
 |------------------------|--------------|---------------------------------------------------------------------|---------------------|

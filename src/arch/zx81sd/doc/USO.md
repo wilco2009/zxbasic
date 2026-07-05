@@ -9,7 +9,7 @@ python -m src.zxbc.zxbc <fuente.bas> --arch zx81sd -o <salida.bin> -M <salida.ma
 ```
 
 - `--arch zx81sd` selecciona el backend y los overrides de esta
-  arquitectura (ver [README.md](README.md) — regla de oro del port).
+  arquitectura (ver [../README.md](../README.md) — regla de oro del port).
 - `-M <salida.map>` es opcional pero muy recomendable: genera el mapa de
   símbolos (dirección de cada label ASM/BASIC), imprescindible para
   depurar con un emulador o simular el binario (ver [MAP.md](MAP.md)
@@ -30,12 +30,10 @@ en páginas de 8KB y generar un cargador BASIC que las vaya metiendo en
 la tarjeta SD81 Booster una a una, remapeando el mapeador de memoria
 entre página y página.
 
-Esto lo hace `split_sd81.py`, una herramienta que vive en el
-repositorio complementario de pruebas del port (no en este
-repositorio del compilador):
+Esto lo hace [`../tools/split_sd81.py`](../tools/split_sd81.py):
 
 ```
-python split_sd81.py <salida.bin> [PREFIJO]
+python src/arch/zx81sd/tools/split_sd81.py <salida.bin> [PREFIJO]
 ```
 
 - `PREFIJO` (opcional) es el nombre base de los ficheros de salida, en
@@ -54,7 +52,8 @@ El cargador generado usa `LOAD THEN CLEAR`, `LOAD *MAP` y
 existen en la ROM original del ZX81). Hace lo siguiente, en orden:
 
 1. Reserva memoria (`CLEAR`) y carga `BOOT1.BIN` (el stage 1, fijo para
-   todos los programas, también en el repositorio complementario).
+   todos los programas — fuente en [`../tools/boot1.asm`](../tools/boot1.asm),
+   binario ya ensamblado en [`../tools/boot1.bin`](../tools/boot1.bin)).
 2. Por cada página del binario: mapea el bloque 7 a esa página física
    (`LOAD *MAP 7,<n>`) y vuelca los datos ahí (`LOAD FAST ... CODE
    57344`, la ventana del bloque 7 en `$E000`).
