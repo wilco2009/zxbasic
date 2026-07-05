@@ -41,10 +41,15 @@ Pending / not audited, remaining screen utilities in the shared stdlib:
   dependency, no override needed (like `scroll.bas` before its fix, or
   `4inarow.bas`). No source changes needed either
   (`examples/winscroll.bas` as-is).
-- `putchars.bas`/`puttile.bas`: not audited or tested. A quick look at
-  the source finds no Spectrum ROM/sysvar addresses (`putChars` fills a
-  rectangle of characters, `putTile` places a 16×16 px tile), so
-  they're good candidates to work unchanged, but this isn't confirmed.
+- `putchars.bas`: audited — no ROM dependency, no override needed.
+  Compiles clean and verified by simulation
+  (`examples/sd81/putcharstile.bas`); pending confirmation on real
+  hardware.
+- `puttile.bas`: **did need a zx81sd override** — hardcoded screen/
+  attribute base constants, same bug class as `print42.bas`/
+  `print64.bas` (fixed the same way, self-modifying code patched at
+  runtime). Verified by simulation; pending confirmation on real
+  hardware.
 - `screen.bas`: **does depend on the ROM** (`$2538`/`$5C65`/`$19E8`,
   fixed Spectrum routines and sysvars to read back a screen character)
   — will need a real override, not just an audit.

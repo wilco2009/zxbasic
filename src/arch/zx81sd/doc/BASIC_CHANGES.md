@@ -188,6 +188,44 @@ touched, clean `HALT` at `__END_PROGRAM`, no illegal writes).
 
 ---
 
+## 5c. `putchars.bas`/`puttile.bas` — one clean, one needed a zx81sd override
+
+New example `examples/sd81/putcharstile.bas` (no official example to
+adapt) exercises both libraries:
+
+- **`putchars.bas`** (`putChars`/`getChars`/`paint`/`paintData`/
+  `getPaintData`/`putCharsOverMode`): audited, **no ROM dependency at
+  all** — every address is computed from `SCREEN_ADDR`/
+  `SCREEN_ATTR_ADDR` read dynamically, and the file's own
+  `#require "sysvars.asm"` is the safe link-time tag (see section 5b
+  above), not a textual include. No zx81sd override needed; used as-is.
+- **`puttile.bas`** (`putTile`, places a 16×16 px tile): **did need an
+  override**. Unlike `putchars.bas`, it hardcodes the screen/attribute
+  base as **immediate constants** — `add a,64` (screen, the Spectrum
+  ROM's `$4000` high byte) and `add a,88` (attributes, `$5800`'s high
+  byte) — instead of reading `SCREEN_ADDR`/`SCREEN_ATTR_ADDR`. Same bug
+  class as `print42.bas`/`print64.bas`. Fixed the same way:
+  `src/lib/arch/zx81sd/stdlib/puttile.bas` patches both constants once
+  on entering `putTile()` (self-modifying code on the `ADD A,n`
+  instructions themselves), reading the real high byte of
+  `SCREEN_ADDR`/`SCREEN_ATTR_ADDR` at that point. Everything else
+  (the interrupt save/restore dance, the stack-based pixel pushing) is
+  architecture-agnostic and copied unchanged — the `ld a,i` / `jp po`
+  idiom naturally never re-enables interrupts on zx81sd, since IFF2 is
+  always reset here (the runtime never does `EI`).
+
+**Debugging note**: the first simulation run of this example looked
+broken (`paint()` seemingly painted only 1 of 3 rows, `putTile`'s area
+looked empty) — turned out to be a false alarm caused by the example's
+own final `PRINT AT` landing on the screen's last row (23), which
+combined with `input()`'s cursor handling to trigger a normal scroll
+that shifted the drawing up before the check ran. Moving the final
+prompt to row 20 fixed it; `paint()`/`putTile()` were correct all
+along. Verified with breakpoints right after each function returns
+(not just at the end) to catch this class of false negative.
+
+---
+
 ## 6. `examples/maskedsprites.bas` → `examples/sd81/maskedsprites_sd81.bas`
 
 **In progress — still not fully working.**
@@ -405,6 +443,7 @@ documented in the library.
 | 4inarow.bas | no copy needed | none | none special |
 | scroll.bas | no copy needed | none (the fix was in the `stdlib/scroll.bas` library) | none special |
 | winscroll.bas | no copy needed | none (no library override needed either — no ROM dependency) | none special |
+| putchars.bas/puttile.bas (unofficial, `putcharstile.bas`) | `putcharstile.bas` in `examples/sd81/` | none for putchars.bas; `puttile.bas` needed a zx81sd override (hardcoded screen/attr base constants, same fix as print42/64) | none special |
 | maskedsprites.bas | `maskedsprites_sd81.bas` | `WaitForNewFrame` rewritten (EI+HALT → VSYNC_TICK); `cb/maskedsprites.bas` library ported to the mapper (block 7) — **in progress, still not fully working** | none special |
 | pong.bas (unofficial) | `pong.bas` in `examples/sd81/` | 1 ASM line (VSYNC_TICK namespace) | none special |
 | block7test.bas (unofficial) | `block7test.bas` in `examples/sd81/` | n/a (written directly for zx81sd) | none special |
