@@ -175,6 +175,42 @@ paquete `z80` de Python. Dos lecciones ya aprendidas por las malas
   repositorio del emulador, no en este) antes que del runtime — en
   hardware real esos traps no existen.
 
+## 8. Nunca hagas `#include once <sysvars.asm>` desde una librería propia
+
+Si necesitas los sysvars propios de zx81sd (`CHARS`/`UDG`/`ATTR_P`/
+`SCREEN_ADDR`/`SCREEN_ATTR_ADDR`...) desde un fichero `stdlib/*.bas`
+nuevo, **no lo incluyas tú mismo con `#include once <sysvars.asm>`** —
+solo referencia los símbolos con el prefijo `.core.` (ver punto 5) y
+confía en que el resto del runtime ya lo trajo.
+
+`sysvars.asm` arrastra tras de sí `bootstrap.asm` → `charset.asm`, y
+este último hace `INCBIN "specfont.bin"` (el font completo, bytes
+binarios, no texto ensamblador). Si tu fichero resulta ser el
+**primero** en incluir `sysvars.asm` en todo el programa compilado
+(fácil que pase: un `#include <tulibreria.bas>` al principio del fuente
+del usuario se procesa antes que cualquier `CLS`/`PRINT` textualmente
+posterior), ese `INCBIN` se emite **justo en el punto del fichero fuente
+donde pusiste el `#include`**:
+
+- Puesto a nivel BASIC (fuera de un bloque `ASM ... END ASM`): el lexer
+  de BASIC intenta tokenizar esos bytes binarios como si fueran texto
+  fuente → `error: illegal preprocessor character` en líneas que no
+  tienen nada que ver con el problema real (mal atribuidas al inicio
+  del fichero).
+- Puesto dentro de un bloque `ASM` (p. ej. al principio del cuerpo de
+  una función): el binario del font se emite literalmente en medio del
+  código compilado de esa función — compila sin error, pero la CPU
+  "ejecuta" esos bytes de font como si fueran instrucciones en cuanto
+  el flujo de control cae ahí, produciendo un `HALT` o comportamiento
+  errático en una dirección que no tiene relación aparente con el bug
+  (encontrado al portar `print42.bas`/`print64.bas`, ver
+  [CAMBIOS_BASIC.md](CAMBIOS_BASIC.md)).
+
+Cualquier programa real que use tu librería casi seguro que también usa
+`CLS`/`PRINT` en algún punto, y esas rutinas ya requieren `sysvars.asm`
+— así que omitir el `#include` en tu fichero es seguro en la práctica,
+no una chapuza.
+
 ## Ver también
 
 - [CAMBIOS_BASIC.md](CAMBIOS_BASIC.md) — catálogo de cambios de fuente

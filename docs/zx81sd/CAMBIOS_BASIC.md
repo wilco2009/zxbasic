@@ -272,6 +272,63 @@ de `Map()`/`MapGet` sobre el bloque 7.
 
 ---
 
+## 9. `print42.bas`/`print64.bas` — librerías nuevas (sin cambios de ejemplo)
+
+`stdlib/print42.bas` y `stdlib/print64.bas` (Britlion) implementan un
+`PRINT` de 42/64 columnas dibujando pixel a pixel, en vez de usar el
+`PRINT` normal de 32 columnas. La versión zx48k depende de la ROM del
+Spectrum en varios sitios:
+
+- `print42.bas`: `ld hl,$5C7B` (sysvar `UDG`), `ld de,15360`
+  (`CHARS-256` fijo) y `ld a,(23693)` (sysvar `ATTR_P`).
+- `print64.bas`: solo `ld a,(23693)` (`ATTR_P`) — su charset de 4px es
+  propio, no usa `UDG`/`CHARS`.
+- Ambos, además, sitúan la pantalla y los atributos con constantes
+  **inmediatas** de base fija (`add a,64` / `add a,88`, los bytes altos
+  de `$4000`/`$5800`) en vez de leer un puntero — funciona en el
+  Spectrum porque esas direcciones son literales de ROM, pero en zx81sd
+  `SCREEN_ADDR`/`SCREEN_ATTR_ADDR` son variables (bloque 6, `$C000`/
+  `$D800`).
+
+Se creó `src/lib/arch/zx81sd/stdlib/print42.bas` y `print64.bas`
+(overrides completos): sysvars fijas → sus equivalentes zx81sd
+(`UDG`/`CHARS`/`ATTR_P`, ver `sysvars.asm`), y las dos constantes de
+base de pantalla/atributos se **parchean una vez al entrar en la
+función** (automodificación de código sobre la propia instrucción
+`ADD A,n`), leyendo el byte alto real de `SCREEN_ADDR`/
+`SCREEN_ATTR_ADDR` en ese momento — igual que hacía la ROM original con
+sus propias rutinas, solo que con un valor variable en vez de fijo.
+
+**Bug real cazado durante el port** (no en el ejemplo, en la librería
+misma): un `#include once <sysvars.asm>` puesto ingenuamente al
+principio del fichero (nivel BASIC, fuera de cualquier bloque `ASM`)
+producía `error: illegal preprocessor character`, y puesto dentro del
+bloque `ASM` de la función compilaba pero colgaba el programa en
+tiempo de ejecución (`HALT` en una dirección de código basura). Causa:
+si esta librería es la **primera** en incluir `sysvars.asm` en todo el
+programa, arrastra tras de sí `bootstrap.asm`/`charset.asm` — y este
+último hace `INCBIN "specfont.bin"` (el font completo, no texto
+ensamblador) — justo en ese punto del fichero fuente. Puesto a nivel
+BASIC, el lexer de BASIC intenta tokenizar bytes binarios de fuente
+como si fueran texto (de ahí el "illegal preprocessor character").
+Puesto dentro de la función, el binario del font se emite literalmente
+en medio del cuerpo compilado de la función, y la CPU lo "ejecuta"
+como si fueran instrucciones en cuanto el flujo cae ahí. Fix: no
+incluir `sysvars.asm` en absoluto desde estos ficheros — confían en que
+ya esté incluido por el resto del runtime (`CLS`/`PRINT`, que cualquier
+programa que use `print42`/`print64` va a usar también), y solo
+referencian los símbolos ya namespaced (`.core.CHARS`, etc.). Detalle
+completo en [PRECAUCIONES.md](PRECAUCIONES.md) y [MAP.md](MAP.md).
+
+Verificado por simulación (arnés Python de siempre): las dos cadenas de
+prueba (`tests_debug/print4264.bas`, repositorio complementario) se
+renderizan legibles píxel a píxel en la posición esperada, sin
+escrituras fuera de pantalla/atributos/variables propias del fichero, y
+el programa llega a su `__END_PROGRAM`/`HALT` normal. Pendiente de
+probar en el emulador/hardware real.
+
+---
+
 ## Resumen para el manual
 
 | Ejemplo | Copia en zx81sd | Cambios de fuente | Flags de compilación |
@@ -284,6 +341,7 @@ de `Map()`/`MapGet` sobre el bloque 7.
 | maskedsprites.bas | `maskedsprites_sd81.bas` | `WaitForNewFrame` reescrita (EI+HALT → VSYNC_TICK); librería `cb/maskedsprites.bas` portada al mapeador (bloque 7) — **en proceso, aún no funciona del todo bien** | ninguna especial |
 | pong.bas (no oficial) | `pong.bas` en `examples/sd81/` | 1 línea ASM (namespace de VSYNC_TICK) | ninguna especial |
 | block7test.bas (no oficial) | `block7test.bas` en `examples/sd81/` | n/a (escrito directamente para zx81sd) | ninguna especial |
+| print42.bas/print64.bas (librerías) | no aplica (no son ejemplos) | ninguno — fix fue en `stdlib/print42.bas`/`print64.bas` | ninguna especial |
 
 Patrón identificado para futuros ejemplos:
 
@@ -302,3 +360,9 @@ Patrón identificado para futuros ejemplos:
    `push namespace core` (como `VSYNC_TICK`) necesita el prefijo
    `.core.` si el bloque `ASM` que lo invoca no está ya dentro de ese
    namespace (ver caso de `pong.bas` arriba).
+4. Si una librería nueva necesita sysvars propios (`CHARS`/`UDG`/
+   `ATTR_P`/`SCREEN_ADDR`/...), **no hacer `#include once <sysvars.asm>`
+   dentro del fichero** — solo referenciar los símbolos con el prefijo
+   `.core.`, confiando en que el resto del runtime (`CLS`/`PRINT`) ya lo
+   incluyó. Ver caso de `print42.bas`/`print64.bas` arriba y
+   [PRECAUCIONES.md](PRECAUCIONES.md).

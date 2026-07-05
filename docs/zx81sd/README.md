@@ -50,9 +50,12 @@ compartida:
 - `screen.bas`: **sí depende de la ROM** (`$2538`/`$5C65`/`$19E8`,
   rutinas y sysvars fijas del Spectrum para leer de vuelta un carácter
   de pantalla) — necesitará un override real, no solo una auditoría.
-- `print42.bas`/`print64.bas`: **sí dependen de sysvars del Spectrum**
-  (`$5C7B` = UDG, `23693` = ATTR_P) — confirmado pendiente de migrar,
-  próximo objetivo.
+- `print42.bas`/`print64.bas`: **portados** (override completo en
+  `stdlib/`) — sysvars fijas → equivalentes zx81sd, y las constantes de
+  base de pantalla/atributos se parchean en tiempo de ejecución
+  (automodificación de código) en vez de ser fijas. Verificado por
+  simulación (texto legible píxel a píxel, sin corrupción de memoria);
+  pendiente de confirmar en el emulador/hardware real.
 
 Ver [CAMBIOS_BASIC.md](CAMBIOS_BASIC.md) para el patrón general de este
 tipo de fix. El port de `maskedsprites.bas`/MSFS (sprites enmascarados
