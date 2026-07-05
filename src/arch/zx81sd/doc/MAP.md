@@ -531,3 +531,30 @@ doesn't unmap (the "release back to page 63" was an invention of this
 override, nothing needs it). Documented in the library's header: if a
 program uses block 7 for its own banking, it must remap its own page
 and call `SetBankPreservingINTs(7)` before using MSFS again.
+
+## Chroma81 colour mode not activated by Spectrum mode alone — RESOLVED (2026-07-05)
+
+Found on real hardware, not caught by the emulator: activating
+Superfast HiRes Spectrum mode (`POKE 2045,172` / `ld ($07FD),a`) turns
+on the Spectrum-compatible screen layout, but does **not** by itself
+turn on Chroma81 colour on a real SD81 Booster — everything showed up
+monochrome despite `INK`/`PAPER`/attributes being written correctly.
+EightyOne shows colour regardless of this step, which is an **emulator
+bug** (color should also require the same explicit activation to match
+real hardware) — needs reporting/fixing in the EightyOne repository
+separately, not something to work around here.
+
+Fix: `tools/boot1.asm` (stage 1 bootstrap) now also writes to the
+Chroma81 port (`$7FEF`) right after activating Spectrum mode:
+
+```
+ld   bc, $7FEF               ; Chroma81 port: set known state
+ld   a, 39                   ; bit5=1 color on, bit4=0 char-code mode
+out  (c), a
+```
+
+`tools/boot1.bin` reassembled with `zxbasm.py` (34 bytes, was 27 —
+exactly the 3 new instructions' bytes: `01 EF 7F` / `3E 27` / `ED 79`).
+This is the shared stage 1 loader used by every zx81sd program, so no
+program needs recompiling — just copy the updated `BOOT1.BIN` to the
+SD card.

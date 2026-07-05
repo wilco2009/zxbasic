@@ -9,15 +9,22 @@
 ;   1. DI  — disable interrupts (ZX81 FAST mode already does this, but
 ;             it's repeated as a precaution before touching paging)
 ;   2. Activate Superfast HiRes Spectrum mode via the FPGA (POKE 2045 = $07FD)
-;   3. Disable memory-mapped IO     (POKE 2056 = $0808)
-;   4. Map block 0 -> page 8 (OUT ($E7), page=8, block=0)
+;   3. Activate Chroma81 colour mode (port $7FEF) -- required separately
+;      from step 2 on real hardware, see note below
+;   4. Disable memory-mapped IO     (POKE 2056 = $0808)
+;   5. Map block 0 -> page 8 (OUT ($E7), page=8, block=0)
 ;      Stage 2 ($0100-$0FFF on page 8) is now ready to run.
-;   5. JP $0100  — jumps to stage 2 in the freshly mapped RAM
+;   6. JP $0100  — jumps to stage 2 in the freshly mapped RAM
 ;
 ; Notes:
 ;   - HFILE=$C000 is the FPGA's default value when activating mode 172.
 ;     If your hardware requires setting it explicitly, uncomment the
 ;     HFILE block at the end.
+;   - Chroma81 colour (step 3): activating Spectrum mode (step 2) does
+;     NOT turn color on by itself on real hardware -- confirmed on a
+;     real SD81 Booster (2026-07-05); the EightyOne emulator shows
+;     color regardless of this step, which is a known emulator bug
+;     (color should also require this OUT, to match real hardware).
 ;   - Stage 1 does NOT initialize SP; stage 2 does (ld sp, $7FFF).
 ;   - Blocks 1-5 are mapped in stage 2 (already running from page 8).
 ;
@@ -54,6 +61,18 @@ SD81_STAGE1:
     ; ------------------------------------------------------------------
     ld   a, 172
     ld   ($07FD), a
+
+    ; ------------------------------------------------------------------
+    ; Activate Chroma81 colour mode
+    ; Activating Spectrum mode above does NOT turn color on by itself
+    ; on real hardware (confirmed on real SD81 Booster; the EightyOne
+    ; emulator shows color regardless, which is an emulator bug to
+    ; report/fix there). Chroma81 is a separate port ($7FEF) that must
+    ; be set explicitly.
+    ; ------------------------------------------------------------------
+    ld   bc, $7FEF               ; Chroma81 port: set known state
+    ld   a, 39                   ; bit5=1 color on, bit4=0 char-code mode
+    out  (c), a
 
     ; ------------------------------------------------------------------
     ; Disable memory-mapped IO
