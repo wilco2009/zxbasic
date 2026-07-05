@@ -340,12 +340,12 @@ from) and was expanded to also demo `McuMkdir`/`McuRmdir`/`McuCopy`/
 
 | File | MCU commands exercised | Status |
 |---|---|---|
-| `examples/sd81/filesystem.bas` | `McuPwd`, `McuCd`, `McuDirPrint`, `McuMkdir`, `McuRmdir`, `McuSave`, `McuCopy`, `McuMove`, `McuDel`, `McuFree` | Compiles clean; not yet run on hardware |
-| `examples/sd81/wavplayer.bas` | `McuLoad` with a `.WAV` file (played directly by the MCU, not loaded into memory) | Compiles clean; not yet run on hardware |
-| `examples/sd81/vgmplayer.bas` | `McuPlayVgm`, `McuContVgm`, `McuPauseVgm`, `McuStopVgm` | Compiles clean; not yet run on hardware |
-| `examples/sd81/pegdemo.bas` | `McuLoadPeg`, `McuPlayPeg`, `McuStopPeg` | Compiles clean; **PEG byte encoding unconfirmed on hardware**, see note below |
-| `examples/sd81/joystick.bas` | `Joy()` (joy.bas, MCU cmd 21) | Compiles clean; not yet run on hardware |
-| `examples/sd81/randomaccess.bas` | `McuFOpenZx`, `McuFSeek`, `McuFRead`, `McuFWrite`, `McuFClose` | Compiles clean; not yet run on hardware |
+| `examples/sd81/filesystem.bas` | `McuPwd`, `McuCd`, `McuDirPrint`, `McuMkdir`, `McuRmdir`, `McuSave`, `McuCopy`, `McuMove`, `McuDel`, `McuFree` | **Confirmed working on real hardware** |
+| `examples/sd81/wavplayer.bas` | `McuLoad` with a `.WAV` file (played directly by the MCU, not loaded into memory) | **Confirmed working on real hardware** |
+| `examples/sd81/vgmplayer.bas` | `McuPlayVgm`, `McuContVgm`, `McuPauseVgm`, `McuStopVgm` | **Confirmed working on real hardware** |
+| `examples/sd81/pegdemo.bas` | `McuLoadPeg`, `McuPlayPeg`, `McuStopPeg` | **Confirmed working on real hardware** (byte order below is correct) |
+| `examples/sd81/joystick.bas` | `Joy()` (joy.bas, MCU cmd 21) | **Confirmed working on real hardware** |
+| `examples/sd81/randomaccess.bas` | `McuFOpenZx`, `McuFSeek`, `McuFRead`, `McuFWrite`, `McuFClose` | **Confirmed working on real hardware** |
 
 Memory-mapper access (`Map()`/`MapGet()`) already has a dedicated
 example, `examples/sd81/block7test.bas` (see section 8 above), so no
@@ -360,16 +360,16 @@ the identifier `input` is now bound to that function. All six examples
 above end with `a$ = input(20)` to wait for a keypress, not
 `input a$`.
 
-**PEG byte encoding, open question**: the SD81 Booster manual's
-Appendix B documents the PEG instruction set as 16-bit words in
-big-endian order (e.g. `LD R,XX` = `0R XX`), but `mcu.bas`'s own
-comment on `McuLoadPeg` says the raw bytes it expects are
-"2 bytes little-endian per instruction". `pegdemo.bas` follows the
-`mcu.bas` comment literally (since that's the function actually being
-called) — each instruction's value byte is sent before its opcode
-byte. This hasn't been confirmed against a working `.PEB` file or the
-`peg.py` assembler mentioned in the manual, so treat the exact byte
-order as unverified until tested on hardware.
+**PEG byte encoding, resolved**: the SD81 Booster manual's Appendix B
+documents the PEG instruction set as 16-bit words in big-endian order
+(e.g. `LD R,XX` = `0R XX`), while `mcu.bas`'s own comment on
+`McuLoadPeg` says the raw bytes it expects are "2 bytes little-endian
+per instruction" — `pegdemo.bas` followed the `mcu.bas` comment
+literally (value byte before opcode byte), and this has now been
+**confirmed correct on real hardware**: the manual's big-endian
+notation describes the instruction word's numeric value, while
+`McuLoadPeg`'s wire format for cmd 40 is genuinely little-endian, as
+documented in the library.
 
 ---
 
