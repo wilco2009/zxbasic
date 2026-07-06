@@ -558,3 +558,27 @@ exactly the 3 new instructions' bytes: `01 EF 7F` / `3E 27` / `ED 79`).
 This is the shared stage 1 loader used by every zx81sd program, so no
 program needs recompiling — just copy the updated `BOOT1.BIN` to the
 SD card.
+
+## Screen/attributes not cleared at program start — RESOLVED (2026-07-06)
+
+Reported after real-hardware testing: block 6 (screen RAM, $C000-$DFFF)
+is physical RAM that survives a reset, unlike a real Spectrum ROM cold
+boot which always starts from a cleared display file. Any zx81sd
+program that doesn't call `CLS` itself (many quick debug tests just
+`PRINT` sequentially) could show leftover pixels/attributes from
+whatever ran before it.
+
+Fix: `runtime/bootstrap.asm`'s `SD81_INIT_SYSVARS` (already run via
+`#init` before every program, right after setting `SCREEN_ADDR`/
+`SCREEN_ATTR_ADDR`/`ATTR_P`) now also clears the physical screen:
+6144 bytes at `$C000` to 0, 768 bytes at `$D800` to the just-set
+`ATTR_P` value ($38 = INK 0/PAPER 7). Same approach as the shared
+`cls.asm`, inlined here to avoid depending on CLS being linked into
+every binary.
+
+This is in the shared bootstrap, so every zx81sd binary gets it
+automatically on recompilation — no per-test changes needed. Verified
+by simulation: pre-filled screen/attr RAM with garbage before boot,
+confirmed both regions read back as fully cleared (0 / $38) right
+before the program's own first PRINT, via a Python harness tracing
+PC/BC/HL through the LDIR loops.
