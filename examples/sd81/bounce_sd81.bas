@@ -117,20 +117,27 @@ end sub
 
 ' On bounce, the position is left unchanged for this frame (matching
 ' bounce.asm) and only the direction flips; it moves next frame.
+'
+' Kept entirely in ubyte (8-bit, mod-256) arithmetic on purpose, same
+' as bounce.asm's "add a,b / cp 177": mixing ubyte+byte and widening to
+' integer sign-extends the 8-bit sum based on its own bit 7 (bally=126,
+' dy=2 -> 8-bit sum 128 gets read as -128, not +128), which is wrong
+' here since bally is genuinely unsigned. Comparing unsigned in ubyte
+' space sidesteps that entirely.
 sub Move
-    dim newY as integer
-    dim newX as integer
+    dim newY as ubyte
+    dim newX as ubyte
 
     if moven <> 0 then
         newY = bally + dy
-        if newY < 0 or newY > 176 then
+        if newY >= 177 then
             dy = -dy
         else
             bally = newY
         end if
 
         newX = ballx + dx
-        if newX < 0 or newX > 30 then
+        if newX >= 31 then
             dx = -dx
         else
             ballx = newX

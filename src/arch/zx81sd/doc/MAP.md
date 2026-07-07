@@ -623,3 +623,35 @@ runs correctly through many frames (10M+ simulated T-states) with
 doesn't model the FPGA's video timing/blit, so whether the dbuf
 actually eliminates tearing on screen can only be confirmed on real
 hardware — that's the point of this demo.
+
+### 2026-07-07 fix: `Move()` bouncing early (~y=128 instead of 176)
+
+Reported after real-hardware testing: the ball in `bounce_sd81.bas`
+bounced roughly mid-screen instead of reaching the bottom, as if it
+had hit an early floor.
+
+Root cause: `Move()`'s original version widened `bally (ubyte) + dy
+(byte)` to an `integer` for the range check. The generated code
+(`ld a,(_bally) / ld h,a / ld a,(_dy) / add a,h / ld l,a / add a,a /
+sbc a,a / ld h,a`) computes the 8-bit sum correctly in the low byte,
+then **sign-extends that 8-bit result based on its own bit 7** to fill
+the high byte. That's correct if both operands were meant to be signed
+bytes, but `bally` is genuinely unsigned (0-176) — `bally=126, dy=2`
+gives an 8-bit sum of 128 ($80, bit 7 set), which gets sign-extended to
+-128 instead of +128. `if newY < 0` then true firing the bounce 48
+pixels early.
+
+Fix: keep `Move()` entirely in `ubyte` (mod-256) arithmetic, matching
+`bounce.asm`'s own `add a,b / cp 177` approach — never widen the
+ubyte+byte sum to a signed integer at all, compare unsigned instead
+(`if newY >= 177`). Verified by simulation: `bally` now climbs smoothly
+through 128, 130, ... past the point where it used to bounce.
+
+General lesson for this port: **`ubyte + byte` widened to `integer`
+sign-extends the 8-bit sum's own bit 7, not the semantically correct
+signed value** — safe when both operands are small/signed, wrong when
+one operand (like a screen coordinate) is genuinely unsigned and can
+exceed 127. Do that arithmetic in a type wide enough from the start
+(assign the ubyte to an integer/uinteger variable *before* adding), or
+stay in 8-bit space with an unsigned comparison if the range allows it,
+as done here.
