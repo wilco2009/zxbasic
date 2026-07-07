@@ -582,3 +582,44 @@ by simulation: pre-filled screen/attr RAM with garbage before boot,
 confirmed both regions read back as fully cleared (0 / $38) right
 before the program's own first PRINT, via a Python harness tracing
 PC/BC/HL through the LDIR loops.
+
+## SD81DBufOn/SD81DBufOff/SD81WaitVSync — double buffer library, port $E7 (2026-07-07)
+
+New `stdlib/dbuf.bas`: wraps the SD81 Booster's present-blit double
+buffer feature. Ported from `SD81-Booster/EXAMPLES/DBUF/bounce.asm`
+(reference demo authored alongside the FPGA feature), adapted for
+zxbasic because memory-mapped IO is disabled by `tools/boot1.asm`
+(`POKE 2056,0`) before any compiled program runs, so the classic
+`POKE 2057` control path is unusable from zxbasic — everything goes
+through port `$E7`'s pseudo-block-8 encoding instead (`OUT` with
+A=8, B=32+frontBlk to enable, B=0 to disable). `boot1.asm` also leaves
+the mapper in full-paging mode permanently, which is exactly the state
+this path requires, so it works unconditionally on every zx81sd binary.
+
+The front buffer is *not* one of the program's own blocks 0-5 (code/
+data, see `_PAGE_MAP` in `backend/main.py`), nor block 6 (the live
+screen) nor block 7 (data banking, `Map()` in `mcu.bas`) — it lives in
+the FPGA's private screen shadow RAM, addressed with its own
+independent 0-7 index. Per the hardware spec, blocks 4/5 are the
+recommended choice and 0-3/6-7 should be avoided; the library and demo
+use 5.
+
+`examples/sd81/bounce_sd81.bas` (mirrored to the private repo as
+`tests_debug/bounce_sd81.bas`, packaged as `BOUNCE.P`/`BOUNCEP8.BIN`) is
+a straight port of the reference demo's logic (erase/~6ms delay/move/
+draw synced to VSYNC, SPACE toggles dbuf live, M freezes movement, Q
+quits) — much shorter than the original because zx81sd's boot already
+sets up the screen address, Superfast HiRes Spectrum mode, Chroma81
+colour and the initial screen/attribute clear (see the previous
+section), none of which bounce.asm can assume when running standalone.
+
+This is the **first test of the port $E7 dbuf path** — only the
+`POKE 2057` path had been validated on real hardware before this.
+Verified so far only in simulation (Python `z80` harness): confirmed
+`SD81DBufOn(5)` emits exactly `OUT $E7` with A=8/B=37 (bit5 enable,
+front=5) and the border changes to green as expected; the main loop
+runs correctly through many frames (10M+ simulated T-states) with
+`PaintBall` writing the expected 32-byte block each time. The simulator
+doesn't model the FPGA's video timing/blit, so whether the dbuf
+actually eliminates tearing on screen can only be confirmed on real
+hardware — that's the point of this demo.
