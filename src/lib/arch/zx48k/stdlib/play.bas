@@ -16,7 +16,11 @@
 ' ---------------------------------------------------------------------------------------------------------------------
 ' Plays the given MML strings on the AY music chip.
 ' The syntax is compatible with the Sinclair Basic Play routine.
+'
 ' The documentation can be found here: https://fizyka.umk.pl/~jacek/zx/doc/man128/sp128p09.html
+'
+' More accurate (although not as well structured) documentation can be found in ZX Spectrum +3 manual here:
+' https://zxspectrumvault.github.io/Manuals/Hardware/SpectrumPlus3Manual.html (see Chapter 8 Part 19)
 '
 ' This is work in progress. 
 
@@ -31,30 +35,42 @@
 ' - V - followed by a number 0 to 15 sets volume of notes
 ' - T - followed by a number 60 to 240 sets tempo of music
 ' - N - separates two numbers (actually, any unexpected character does this, including space)
+' - () - specifies that the enclosed phrase must be repeated
+' - H - specifies that the Play command must stop
 '
 ' The following commands are not implemented yet:
 ' - W, U, X - set volume effects
-' - () - repetition
 ' - !! - comments
-' - H - stop
 ' - M - channel mixer control
 ' - Y, Z - MIDI control (also you can't now pass more than 3 parameters to Play).
 '
 ' Notes:
+'
 ' - Unlike Sinclair Basic Play routine, this one doesn't insert tiny pauses between adjacent notes.
 '   I consider this to be a feature, rather than a bug.
-' - There are no checks for incorrect commands or parameters. Unknown commands are silently ignored,
-'   and incorrect parameters cause undefined behavior.
+'
+' - There is no proper error handling implemented. In particular:
+'   - Unknown commands are silently ignored.
+'   - Out-of-range numbers cause undefined behavior.
+'   - An opening bracket is silently ignored if nesting level limit was reached (brackets can be maximum 4 levels deep).
+'
 ' - This routine is more flexible in the way it parses commands than Sinclair Basic Play routine.
 '   Some combinations that give errors in Sinclair Basic, will play fine in this implementation.
+'
 ' - This sub tends to provide more accurate timings than the original Sinclair Basic Play routine.
 '   However, perfect timing is not guaranteed, it may fluctuate depending on the complexity of the melody.
+'
 ' - There can be subtle difference in behaviour between this sub and Sinclair Play,
 '   especially in undocumented edge cases (such as using ties together with triplets).
+'
 ' - This sub disables interrupts at the start, and enables them in the end,
 '   regardless of whether they were enabled or not before.
+'
+' - This sub assumes the standard ZX Spectrum CPU speed of approximately 3.5 MHz.
+'
 ' - The strings are passed by value and thus are copied on the routine invocation.
 '   The memory-effective version of this routine is yet to be implemented.
+'
 ' - The compiler gives warning `[W150] Parameter 'microticks' is never used`.
 '   This is false positive and, unfortunately, cannot be suppressed on library level.
 ' ---------------------------------------------------------------------------------------------------------------------
@@ -143,11 +159,15 @@ dim _Play_ContextPtr as uinteger
 
 ' Main sub.
 '
-' Implementation note:
+' Implementation notes:
+' 
 ' If you want to extend the inner subs or functions, or add new ones,
 ' please beware that the current compiler version (v1.19.0-beta7 at the time of writing)
 ' doesn't support accessing outer local vars from the inner sub/function,
 ' if the inner sub/function has its own vars or params.
+'
+' The readability of the code was in many ways sacrificed in favor of performance,
+' which is necessary to achieve accurate timings.
 ' 
 ' TODO: add sub variants that accept strings byref, and that accept an array.
 ' TODO: check valid ranges of command parameters, handle integer overflow/underflow
@@ -178,11 +198,15 @@ sub Play(channel0 as string, channel1 as string = "", channel2 as string = "")
     const TickChannelCommandsOverheadInMicroticks as uinteger = 140
   
     ' Channel numbers are zero-based, because it's better in terms of performance (less arithmetics in runtime needed).
-    const MaxChannel as ubyte = ChannelCount - 1  
+    const MaxChannel as ubyte = ChannelCount - 1
+
+    ' Maximum nesting level for brackets.
+    ' Initial level is 0. An opening bracket increases the level, a closing bracket decreases the level.
+    const MaxNestingLevel as ubyte = 4
 
     ' Size of a single channel context in bytes. Don't forget to increase this if you add more context fields.  
     ' Note: this is used in macro `_PLAY_CTX_NEXT_CHANNEL`.
-    const ChannelContextSize as ubyte = 15
+    const ChannelContextSize as ubyte = 26
 
     ' Channel context data is stored here.
     dim ChannelContextBuffer(0 to ChannelContextSize * ChannelCount - 1) as ubyte
@@ -210,6 +234,11 @@ sub Play(channel0 as string, channel1 as string = "", channel2 as string = "")
     const _SemitoneAdjustment as ubyte = 12 ' (byte)  How many semitones to add or subtract from the next note.
     const _FinishedFlag       as ubyte = 13 ' (ubyte) If nonzero, then the channel has finished playing.
     const _Volume             as ubyte = 14 ' (ubyte) Current volume.
+    const _NestingLevel       as ubyte = 15 ' (ubyte) Current brackets nesting level.
+    const _ReturnPtrs         as ubyte = 16 ' (uinteger * (MaxNestingLevel+1))
+                                            '           Stack of pointers to return to on closing brackets.
+                                            '           The zeroth element always points to the string start,
+                                            '           for infinite repeat when there is an unpaired closing bracket.
 
     ' Current tempo as beats per minute. A 'beat' is a 1/4-length note.
     dim Tempo as ubyte
@@ -323,6 +352,7 @@ sub Play(channel0 as string, channel1 as string = "", channel2 as string = "")
 
     dim channel as ubyte
     dim strLen as uinteger
+    dim ptr as uinteger
 
     _PLAY_CTX_FIRST_CHANNEL()
 
@@ -330,16 +360,18 @@ sub Play(channel0 as string, channel1 as string = "", channel2 as string = "")
         ' We need low-level access to the strings to achieve good performance.
         
         ' dereference the pointer to the heap
-        _PLAY_CTX_SET(uinteger, _CharPtr, peek(uinteger, _PLAY_CTX_GET(uinteger, _CharPtr)))
+        ptr = peek(uinteger, _PLAY_CTX_GET(uinteger, _CharPtr))
 
         ' read the string length
-        strLen = peek(uinteger, _PLAY_CTX_GET(uinteger, _CharPtr))
+        strLen = peek(uinteger, ptr)
 
         ' adjust the pointer so it points to the first char
-        _PLAY_CTX_ADD(uinteger, _CharPtr, 2)
+        ptr = ptr + 2
 
-        ' calculate and store the pointer to the string end
-        _PLAY_CTX_SET(uinteger, _StringEndPtr, _PLAY_CTX_GET(uinteger, _CharPtr) + strLen)
+        ' store pointers to the string start and end
+        _PLAY_CTX_SET(uinteger, _CharPtr, ptr)
+        _PLAY_CTX_SET(uinteger, _ReturnPtrs + 0, ptr)
+        _PLAY_CTX_SET(uinteger, _StringEndPtr, ptr + strLen)
 
         SetOctave DefaultOctave
         _PLAY_CTX_SET(ubyte, _Volume, DefaultVolume)
@@ -349,6 +381,7 @@ sub Play(channel0 as string, channel1 as string = "", channel2 as string = "")
         _PLAY_CTX_SET(byte, _SemitoneAdjustment, 0)
         _PLAY_CTX_SET(ubyte, _ResetNoteLengthBackCount, 0)
         _PLAY_CTX_SET(ubyte, _FinishedFlag, 0)
+        _PLAY_CTX_SET(ubyte, _NestingLevel, 0)
         
         _PLAY_CTX_NEXT_CHANNEL()
     next channel
@@ -361,6 +394,10 @@ sub Play(channel0 as string, channel1 as string = "", channel2 as string = "")
     dim finishedChannels as ubyte
     dim lengthInTicks as uinteger
     dim dividerIndex as ubyte
+    dim nestingLevel as ubyte
+    dim returnPtr as uinteger
+    dim returnPtrOffset as uinteger
+    dim halt as ubyte = 0
 
     #ifdef _PLAY_BENCHMARK_MODE
         dim SysFrames as uinteger at $5c78
@@ -439,6 +476,35 @@ sub Play(channel0 as string, channel1 as string = "", channel2 as string = "")
                         _PLAY_CTX_ADD(uinteger, _ActualNoteLengthInTicks, lengthInTicks)
                         _PLAY_CTX_SET(uinteger, _PrimaryNoteLengthInTicks, lengthInTicks)
 
+                    else if LastChar = code("(") then
+                        nestingLevel = _PLAY_CTX_GET(ubyte, _NestingLevel)
+
+                        if nestingLevel < MaxNestingLevel then
+                            nestingLevel = nestingLevel + 1
+                            returnPtrOffset = _ReturnPtrs + nestingLevel * 2                        
+                            _PLAY_CTX_SET(ubyte, _NestingLevel, nestingLevel)
+                            _PLAY_CTX_SET(uinteger, returnPtrOffset, _PLAY_CTX_GET(uinteger, _CharPtr))                       
+                        end if
+
+                    else if LastChar = code(")") then
+                        nestingLevel = _PLAY_CTX_GET(ubyte, _NestingLevel)
+                        returnPtrOffset = _ReturnPtrs + nestingLevel * 2
+                        returnPtr = _PLAY_CTX_GET(uinteger, returnPtrOffset)
+
+                        if returnPtr = 0 then
+                            ' already repeated - decrease nesting level
+                            nestingLevel = nestingLevel - 1
+                            _PLAY_CTX_SET(ubyte, _NestingLevel, nestingLevel)
+                        else
+                            ' return to the repeat point
+                            _PLAY_CTX_SET(uinteger, _CharPtr, returnPtr)
+
+                            ' clear return pointer unless it is zero level (in which case we loop infinitely)
+                            if nestingLevel > 0 then
+                                _PLAY_CTX_SET(uinteger, returnPtrOffset, 0)
+                            end if
+                        end if
+
                     else if LastChar = code("O") then
                         ReadNumber
                         SetOctave LastNumber
@@ -454,6 +520,10 @@ sub Play(channel0 as string, channel1 as string = "", channel2 as string = "")
                             Tempo = LastNumber
                             UpdateMicroticksPerTick
                         end if
+
+                    else if LastChar = code("H") then
+                        halt = 1
+                        exit for
                                         
                     ' TODO: process other commands here
                     end if
@@ -476,6 +546,13 @@ sub Play(channel0 as string, channel1 as string = "", channel2 as string = "")
 
             _PLAY_CTX_NEXT_CHANNEL()
         next channel
+
+        if halt then
+            for channel = 0 to MaxChannel
+                SetChipVolume channel, 0
+            next channel
+            exit do
+        end if
 
         Wait MicroticksPerTick _
             - TickGeneralOverheadInMicroticks _
