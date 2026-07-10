@@ -11,8 +11,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from enum import StrEnum, unique
 
-from src.api import utils
-from src.ply import lex
+from src.api import lex, utils
 from src.zxbpp.prepro import output
 from src.zxbpp.prepro.builtinmacro import BuiltinMacro
 from src.zxbpp.prepro.definestable import DefinesTable

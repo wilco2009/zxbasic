@@ -11,9 +11,8 @@ import re
 import sys
 
 from src import api
-from src.api import global_
+from src.api import global_, lex
 from src.api.errmsg import error
-from src.ply import lex
 from src.zxbc.keywords import KEYWORDS as reserved
 
 ASM = ""  # Set to asm block when commenting

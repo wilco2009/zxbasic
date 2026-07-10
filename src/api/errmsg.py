@@ -43,6 +43,9 @@ def info(msg: str) -> None:
 
 def error(lineno: int, msg: str, fname: str | None = None) -> None:
     """Generic syntax error routine"""
+    if getattr(global_, "syntax_error_occurred", False) and not getattr(global_, "reporting_syntax_error", False):
+        return
+
     if fname is None:
         fname = global_.FILENAME
 
@@ -60,6 +63,8 @@ def error(lineno: int, msg: str, fname: str | None = None) -> None:
 
 def warning(lineno: int, msg: str, fname: str | None = None) -> None:
     """Generic warning error routine"""
+    if getattr(global_, "syntax_error_occurred", False):
+        return
     global_.has_warnings += 1
     if global_.has_warnings <= config.OPTIONS.expected_warnings:
         return
