@@ -53,7 +53,7 @@ ifempty0.bas:3: warning: Useless empty IF ignored
 >>> process_file('arch/zx48k/llb.bas')
 llb.bas:3: error: Undeclared function "f$"
 >>> process_file('arch/zx48k/substr_expr_err.bas')
-substr_expr_err.bas:3: error: Expected a string type expression. Got byte type instead
+substr_expr_err.bas:2: error: Expected a string type expression. Got byte type instead
 >>> process_file('arch/zx48k/dup_func_decl.bas')
 dup_func_decl.bas:5: error: duplicated declaration for function 'f'
 >>> process_file('arch/zx48k/def_func_inline.bas')

@@ -92,7 +92,7 @@ shell = """
 branch = true
 omit = [
     "tests/*",
-    "src/ply/*"
+    "src/**/*_standalone.py",
 ]
 
 [tool.pytest.ini_options]
@@ -116,15 +116,18 @@ disable_error_code = [
     "var-annotated",
 ]
 exclude = [
-    'src/ply/.*\.py$',
-    'scratch/*',
-    '.venv/*',
-    'venv/*',
+    'scratch/.*',
+    '.venv/.*',
+    'venv/.*',
+    'src/.*_standalone\.py$',
 ]
 
 [[tool.mypy.overrides]]
 module = [
-  "src.ply.*",
+  "src.zxbasm.asmparse_standalone",
+  "src.zxbasm.asmparse_zxnext_standalone",
+  "src.zxbc.zxbparser_standalone",
+  "src.zxbpp.zxbpp_standalone",
 ]
 follow_imports = "skip"
 
@@ -134,7 +137,7 @@ target-version = "py314"
 exclude = [
     ".venv/",
     "venv/",
-    "src/ply"  # PLY, external 3rd party tool
+    "src/**/*standalone.py",
 ]
 
 [tool.ruff.lint]

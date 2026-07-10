@@ -173,7 +173,7 @@ class SymbolTYPEREF(Symbol):
     """
 
     def __init__(self, type_: SymbolTYPE, lineno: int, filename: str = "", *, implicit: bool = False):
-        assert isinstance(type_, SymbolTYPE)
+        assert isinstance(type_, SymbolTYPE | SymbolTYPEREF)
         super().__init__(type_)
         self.implicit = implicit  # Whether this annotation was implicit or not
         self.lineno = lineno  # Line number where this annotation was defined

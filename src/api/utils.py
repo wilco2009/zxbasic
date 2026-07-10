@@ -7,14 +7,13 @@
 
 import errno
 import os
-import shelve
 import signal
 from collections.abc import Callable, Iterable
 from contextlib import contextmanager
 from functools import wraps
 from typing import IO, Any, TypeVar
 
-from src.api import constants, errmsg, global_
+from src.api import errmsg, global_
 
 __all__ = (
     "chdir",
@@ -29,9 +28,6 @@ __all__ = (
 __doc__ = """Utils module contains many helpers for several task,
 like reading files or path management"""
 
-
-SHELVE_PATH = os.path.join(constants.ZXBASIC_ROOT, "parsetab", "tabs.dbm")
-SHELVE = shelve.open(SHELVE_PATH, protocol=5, flag="c")
 
 T = TypeVar("T")
 
@@ -182,20 +178,6 @@ def eval_to_num(expr: str) -> int | float | None:
         return result
 
     return None
-
-
-def load_object(key: str) -> Any:
-    return SHELVE[key] if key in SHELVE else None
-
-
-def save_object(key: str, obj: Any) -> Any:
-    SHELVE[key] = obj
-    SHELVE.sync()
-    return obj
-
-
-def get_or_create(key: str, fn: Callable[[], Any]) -> Any:
-    return load_object(key) or save_object(key, fn())
 
 
 def timeout(seconds: Callable[[], int] | int = 10, error_message=os.strerror(errno.ETIME)):
