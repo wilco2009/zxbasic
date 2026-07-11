@@ -5,6 +5,7 @@ subcall1.bas:6: error: 'test' is a SUB not a FUNCTION
 >>> process_file('arch/zx48k/subcall2.bas')
 subcall2.bas:6: error: 'test' is a SUB, not a FUNCTION
 >>> process_file('arch/zx48k/param3.bas')
+param3.bas:5: error: Invalid $ suffix (or sigil) for numeric variable
 param3.bas:5: error: Function 'test' (previously declared at 3) type mismatch
 param3.bas:6: error: Type Error: Function must return a numeric value, not a string
 >>> process_file('arch/zx48k/typecast1.bas')
