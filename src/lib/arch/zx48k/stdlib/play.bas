@@ -40,10 +40,10 @@
 ' - W - followed by a number 0 to 7 sets volume effect
 ' - X - followed by a number 0 to 65535 sets duration of volume effect
 ' - U - turns on volume effect in the channel
+' - M - followed by a number from 0 to 63 specifies the channels mixer mode
 '
 ' The following commands are not implemented yet:
 ' - !! - comments
-' - M - channel mixer control
 ' - Y, Z - MIDI control (also you can't now pass more than 3 parameters to Play).
 '
 ' Notes:
@@ -344,10 +344,15 @@ sub Play(channel0 as string, channel1 as string = "", channel2 as string = "")
         end asm
     end sub
 
-    ' Set pitch on the sound chip for a channel.
-    sub SetChipPitchDivider(channel as ubyte, divider as uinteger)
+    ' Set tone pitch on the sound chip for a channel.
+    sub SetChipTonePitchDivider(channel as ubyte, divider as uinteger)
         _PLAY_WRITE_TO_REGISTER(channel * 2, divider band $ff)
         _PLAY_WRITE_TO_REGISTER(channel * 2 + 1, divider >> 8)
+    end sub
+
+    ' Set pitch for noise generator of the sound chip.
+    sub SetChipNoisePitchDivider(divider as ubyte)
+        _PLAY_WRITE_TO_REGISTER(6, divider)
     end sub
 
     ' Set volume on the sound chip for a channel. A special value `VolumeEnvelopeOn` means use envelope generator.
@@ -368,6 +373,9 @@ sub Play(channel0 as string, channel1 as string = "", channel2 as string = "")
     end sub
 
     ' Set mixer mode on the sound chip.
+    ' Bits 0, 1, 2 - if zero, enable tone on channels A, B, C correspondingly
+    ' Bits 3, 4, 5 - if zero, enable noise on channels A, B, C correspondingly
+    ' Bits 6, 7 - i/o ports, better set 1 there for now. (MIDI control? I don't know)
     sub SetChipMixer(value as ubyte)
         _PLAY_WRITE_TO_REGISTER(7, value)
     end sub
@@ -487,7 +495,14 @@ sub Play(channel0 as string, channel1 as string = "", channel2 as string = "")
 
                         _PLAY_CTX_SET(byte, _SemitoneAdjustment, 0)
 
-                        SetChipPitchDivider channel, _Play_NoteDividers(dividerIndex)
+                        SetChipTonePitchDivider channel, _Play_NoteDividers(dividerIndex)
+
+                        if channel = 0 then
+                            ' Channel A pitch also defines noise generator pitch.
+                            ' The formula taken from ROM disassembly.
+                            ' Note: this affects all channels which have noise enabled.
+                            SetChipNoisePitchDivider ((bnot dividerIndex) band $7f) >> 2
+                        end if
 
                         volume = _PLAY_CTX_GET(ubyte, _Volume)
                         SetChipVolume channel, volume
@@ -577,6 +592,11 @@ sub Play(channel0 as string, channel1 as string = "", channel2 as string = "")
                     else if LastChar = code("W") then
                         ReadNumber
                         EnvelopeShape = _Play_EnvelopeShapes(LastNumber)
+
+                    else if LastChar = code("M") then
+                        ReadNumber
+                        ' invert the bits and push directly to the chip
+                        SetChipMixer bnot LastNumber
 
                     else if LastChar = code("T") then
                         ReadNumber
