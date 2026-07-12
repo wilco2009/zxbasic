@@ -73,6 +73,12 @@
 '
 ' - The compiler gives warning `[W150] Parameter 'microticks' is never used`.
 '   This is false positive and, unfortunately, cannot be suppressed on library level.
+'
+' - For some obscure reason, this sub doesn't work if compiler optimization level is set to 1 or lower.
+'   The default optimization level (2) is fine.
+'
+' - The `--enable-break` compiler option causes play slowdown. The sound chip is not silenced when Break is pressed,
+'   so it may feel as if the music 'freezed'.
 ' ---------------------------------------------------------------------------------------------------------------------
 declare sub Play(channel0 as string, channel1 as string = "", channel2 as string = "")
 
@@ -332,7 +338,7 @@ sub Play(channel0 as string, channel1 as string = "", channel2 as string = "")
     end sub
 
     ' If macro `_PLAY_BENCHMARK_MODE` is defined, then interrupts are not disabled, and the system timer is used to
-    ' measure the duration of play. The duration in ticks is printed on the screen after playing.
+    ' measure the duration of play. The duration in frames is printed on the screen after playing.
     ' Note that interrupts add overhead and inaccuracies to timings, so this mode is not intended for fine-tuning
     ' timings. This should only be used for differential analysis of code optimization efficiency.
     #ifndef _PLAY_BENCHMARK_MODE
@@ -560,7 +566,7 @@ sub Play(channel0 as string, channel1 as string = "", channel2 as string = "")
     loop until finishedChannels = ChannelCount
 
     #ifdef _PLAY_BENCHMARK_MODE
-        print "Play duration: "; SysFrames - startTime; " ticks."
+        print "Play duration: "; SysFrames - startTime; " frames."
     #endif
 
     asm
