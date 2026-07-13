@@ -37,11 +37,13 @@
 ' - N - separates two numbers (actually, any unexpected character does this, including space)
 ' - () - specifies that the enclosed phrase must be repeated
 ' - H - specifies that the Play command must stop
+' - W - followed by a number 0 to 7 sets volume effect
+' - X - followed by a number 0 to 65535 sets duration of volume effect
+' - U - turns on volume effect in the channel
+' - M - followed by a number from 0 to 63 specifies the channels mixer mode
 '
 ' The following commands are not implemented yet:
-' - W, U, X - set volume effects
 ' - !! - comments
-' - M - channel mixer control
 ' - Y, Z - MIDI control (also you can't now pass more than 3 parameters to Play).
 '
 ' Notes:
@@ -73,6 +75,12 @@
 '
 ' - The compiler gives warning `[W150] Parameter 'microticks' is never used`.
 '   This is false positive and, unfortunately, cannot be suppressed on library level.
+'
+' - For some obscure reason, this sub doesn't work if compiler optimization level is set to 1 or lower.
+'   The default optimization level (2) is fine.
+'
+' - The `--enable-break` compiler option causes play slowdown. The sound chip is not silenced when Break is pressed,
+'   so it may feel as if the music 'freezed'.
 ' ---------------------------------------------------------------------------------------------------------------------
 declare sub Play(channel0 as string, channel1 as string = "", channel2 as string = "")
 
@@ -132,6 +140,18 @@ dim _Play_NoteIndexes(code("A") to code("G")) as ubyte = { _
     /'G'/ 7   _
 }
 
+' Maps envelope shape number to its hardware equivalent.
+dim _Play_EnvelopeShapes(0 to 7) as ubyte = { _
+    /'0'/ %0000, _
+    /'1'/ %0100, _
+    /'2'/ %1011, _
+    /'3'/ %1101, _
+    /'4'/ %1000, _
+    /'5'/ %1100, _
+    /'6'/ %1110, _
+    /'7'/ %1010  _
+}
+
 ' Pointer to the current channel context.
 ' Made global for better performance, and also because it would be problematic to access it from nested subs if it were
 ' local (see 'Implementation note' on `Play`).
@@ -185,6 +205,10 @@ sub Play(channel0 as string, channel1 as string = "", channel2 as string = "")
     const DefaultNoteLength as ubyte = 5
     const DefaultVolume as ubyte = 15
     const DefaultMixer as ubyte = %11111000
+    const DefaultEnvelopeShape as ubyte = 0
+
+    ' Special volume value that enables hardware envelope.
+    const VolumeEnvelopeOn as ubyte = 16
 
     ' General processing overhead compensation. Applied to every `Wait` invocation.
     ' Determined experimentally.
@@ -234,6 +258,7 @@ sub Play(channel0 as string, channel1 as string = "", channel2 as string = "")
     const _SemitoneAdjustment as ubyte = 12 ' (byte)  How many semitones to add or subtract from the next note.
     const _FinishedFlag       as ubyte = 13 ' (ubyte) If nonzero, then the channel has finished playing.
     const _Volume             as ubyte = 14 ' (ubyte) Current volume.
+                                            '         If equals to `VolumeEnvelopeOn`, the envelope generator is used.
     const _NestingLevel       as ubyte = 15 ' (ubyte) Current brackets nesting level.
     const _ReturnPtrs         as ubyte = 16 ' (uinteger * (MaxNestingLevel+1))
                                             '           Stack of pointers to return to on closing brackets.
@@ -247,6 +272,10 @@ sub Play(channel0 as string, channel1 as string = "", channel2 as string = "")
     ' For 'microtick' definition, see the `CpuCyclesPerMicrotick` const.
     ' For 'tick' definition, see the `_Play_TicksPerBar` const.
     dim MicroticksPerTick as uinteger
+
+    ' Current hardware envelope shape.
+    ' See `_Play_EnvelopeShapes` for possible values.
+    dim EnvelopeShape as ubyte
 
     dim LastChar as ubyte      ' Last char read by `ReadChar` sub.    
     dim LastNumber as uinteger ' Last number read by `ReadNumber` sub.
@@ -315,24 +344,44 @@ sub Play(channel0 as string, channel1 as string = "", channel2 as string = "")
         end asm
     end sub
 
-    ' Set pitch on the sound chip for a channel.
-    sub SetChipPitchDivider(channel as ubyte, divider as uinteger)
+    ' Set tone pitch on the sound chip for a channel.
+    sub SetChipTonePitchDivider(channel as ubyte, divider as uinteger)
         _PLAY_WRITE_TO_REGISTER(channel * 2, divider band $ff)
         _PLAY_WRITE_TO_REGISTER(channel * 2 + 1, divider >> 8)
     end sub
 
-    ' Set volume on the sound chip for a channel.
+    ' Set pitch for noise generator of the sound chip.
+    sub SetChipNoisePitchDivider(divider as ubyte)
+        _PLAY_WRITE_TO_REGISTER(6, divider)
+    end sub
+
+    ' Set volume on the sound chip for a channel. A special value `VolumeEnvelopeOn` means use envelope generator.
     sub SetChipVolume(channel as ubyte, volume as ubyte)
         _PLAY_WRITE_TO_REGISTER(channel + 8, volume)
     end sub
 
+    ' Sets envelope shape on the sound chip.
+    ' See `_Play_EnvelopeShapes` for possible values.
+    sub SetChipEnvelopeShape(shape as ubyte)
+        _PLAY_WRITE_TO_REGISTER(13, shape)
+    end sub
+
+    ' Sets envelope period on the sound chip.
+    sub SetChipEnvelopePeriod(period as uinteger)
+        _PLAY_WRITE_TO_REGISTER(11, period band $ff)
+        _PLAY_WRITE_TO_REGISTER(12, period >> 8)
+    end sub
+
     ' Set mixer mode on the sound chip.
+    ' Bits 0, 1, 2 - if zero, enable tone on channels A, B, C correspondingly
+    ' Bits 3, 4, 5 - if zero, enable noise on channels A, B, C correspondingly
+    ' Bits 6, 7 - i/o ports, better set 1 there for now. (MIDI control? I don't know)
     sub SetChipMixer(value as ubyte)
         _PLAY_WRITE_TO_REGISTER(7, value)
     end sub
 
     ' If macro `_PLAY_BENCHMARK_MODE` is defined, then interrupts are not disabled, and the system timer is used to
-    ' measure the duration of play. The duration in ticks is printed on the screen after playing.
+    ' measure the duration of play. The duration in frames is printed on the screen after playing.
     ' Note that interrupts add overhead and inaccuracies to timings, so this mode is not intended for fine-tuning
     ' timings. This should only be used for differential analysis of code optimization efficiency.
     #ifndef _PLAY_BENCHMARK_MODE
@@ -386,6 +435,7 @@ sub Play(channel0 as string, channel1 as string = "", channel2 as string = "")
         _PLAY_CTX_NEXT_CHANNEL()
     next channel
 
+    EnvelopeShape = DefaultEnvelopeShape
     Tempo = DefaultTempo
     UpdateMicroticksPerTick
     SetChipMixer DefaultMixer
@@ -398,6 +448,8 @@ sub Play(channel0 as string, channel1 as string = "", channel2 as string = "")
     dim returnPtr as uinteger
     dim returnPtrOffset as uinteger
     dim halt as ubyte = 0
+    dim volume as ubyte
+    dim mustInitEnvelope as ubyte
 
     #ifdef _PLAY_BENCHMARK_MODE
         dim SysFrames as uinteger at $5c78
@@ -407,6 +459,7 @@ sub Play(channel0 as string, channel1 as string = "", channel2 as string = "")
     do
         finishedChannels = 0
         processedChannels = 0
+        mustInitEnvelope = 0
 
         _PLAY_CTX_FIRST_CHANNEL()
 
@@ -442,8 +495,24 @@ sub Play(channel0 as string, channel1 as string = "", channel2 as string = "")
 
                         _PLAY_CTX_SET(byte, _SemitoneAdjustment, 0)
 
-                        SetChipPitchDivider channel, _Play_NoteDividers(dividerIndex)
-                        SetChipVolume channel, _PLAY_CTX_GET(ubyte, _Volume)
+                        SetChipTonePitchDivider channel, _Play_NoteDividers(dividerIndex)
+
+                        if channel = 0 then
+                            ' Channel A pitch also defines noise generator pitch.
+                            ' The formula taken from ROM disassembly.
+                            ' Note: this affects all channels which have noise enabled.
+                            SetChipNoisePitchDivider ((bnot dividerIndex) band $7f) >> 2
+                        end if
+
+                        volume = _PLAY_CTX_GET(ubyte, _Volume)
+                        SetChipVolume channel, volume
+
+                        if volume = VolumeEnvelopeOn then
+                            ' If volume envelope is enabled on any channel, we need to re-initialize volume shape
+                            ' on sound chip on every note start, for the envelope to start when the note starts.
+                            ' Note that this affects all channels at once, but this is the limitation of hardware.
+                            mustInitEnvelope = 1
+                        end if
 
                         exit do
 
@@ -513,6 +582,22 @@ sub Play(channel0 as string, channel1 as string = "", channel2 as string = "")
                         ReadNumber
                         _PLAY_CTX_SET(ubyte, _Volume, LastNumber)
 
+                    else if LastChar = code("U") then
+                        _PLAY_CTX_SET(ubyte, _Volume, VolumeEnvelopeOn)
+
+                    else if LastChar = code("X") then
+                        ReadNumber
+                        SetChipEnvelopePeriod LastNumber
+
+                    else if LastChar = code("W") then
+                        ReadNumber
+                        EnvelopeShape = _Play_EnvelopeShapes(LastNumber)
+
+                    else if LastChar = code("M") then
+                        ReadNumber
+                        ' invert the bits and push directly to the chip
+                        SetChipMixer bnot LastNumber
+
                     else if LastChar = code("T") then
                         ReadNumber
                         
@@ -547,6 +632,10 @@ sub Play(channel0 as string, channel1 as string = "", channel2 as string = "")
             _PLAY_CTX_NEXT_CHANNEL()
         next channel
 
+        if mustInitEnvelope then
+            SetChipEnvelopeShape EnvelopeShape
+        end if
+
         if halt then
             for channel = 0 to MaxChannel
                 SetChipVolume channel, 0
@@ -560,7 +649,7 @@ sub Play(channel0 as string, channel1 as string = "", channel2 as string = "")
     loop until finishedChannels = ChannelCount
 
     #ifdef _PLAY_BENCHMARK_MODE
-        print "Play duration: "; SysFrames - startTime; " ticks."
+        print "Play duration: "; SysFrames - startTime; " frames."
     #endif
 
     asm
