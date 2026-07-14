@@ -655,3 +655,52 @@ exceed 127. Do that arithmetic in a type wide enough from the start
 (assign the ubyte to an integer/uinteger variable *before* adding), or
 stay in 8-bit space with an unsigned comparison if the range allows it,
 as done here.
+
+### 2026-07-14: RST $38 behaves like a real HALT instead of hanging forever
+
+User request: interrupts stay disabled for the whole program (by
+design), so RST $38/IM1 "should never be reached" — but if something
+did reactivate them, the old `di`+`halt` handler locked the machine up
+permanently. Changed it to wait for the next VSYNC pulse (port `$AF`,
+bits 6-1 = pulse counter, reset on read) and `ret`, approximating what
+a real Z80 HALT does (resume after the next interrupt) instead of
+hanging.
+
+**Found along the way: `src/lib/arch/zx81sd/runtime/vectors.asm` was
+dead code, never `#include`d by anything.** The actual RST vector table
+is emitted directly as Python-generated ASM text in
+`backend/main.py::emit_prologue()` (`org $0038` / `di` / `halt`, etc.)
+— a duplicate of what `vectors.asm` described, added in the same
+original commit but apparently never wired together. First attempt at
+this fix edited `vectors.asm` and got silently ignored (compiled
+binaries kept the old `di`/`halt` bytes at $0038) until byte-inspecting
+the actual output caught it. Fixed the real source in `main.py` instead
+and deleted `vectors.asm` to remove the misleading duplicate — if
+`vectors.asm` (or any other zx81sd runtime `.asm` file) needs editing
+again, first grep for whether it's actually `#include`d/`#require`d by
+anything, don't assume a file with a plausible name and location is
+live.
+
+Verified: compiled binary now has `DB AF E6 7E 28 FA C9` at `$0038`
+(`in a,($AF)` / `and $7E` / `jr z,-6` / `ret`) instead of `F3 76`
+(`di`/`halt`); simulated a stray RST $38 with a port callback that
+returns "no pulse" 3 times then "pulse" — confirmed the loop reads the
+port exactly 4 times (3 waits + the one that breaks it) before
+falling through to `ret`.
+
+**Also discussed and shelved: returning to the ZX81 BASIC prompt after
+a program ends**, instead of the permanent `di`/`halt` at
+`__END_PROGRAM`. Concluded not practically feasible with the current
+architecture: `tools/boot1.asm` remaps block 0 away from the ZX81's own
+ROM/RAM to run the compiled program, and `src/arch/zx81sd/doc/
+USAGE.md`'s own loader documentation notes the mapper's full-paging
+mode "doesn't go back to simple mode until the next reset" — i.e. it's
+a one-way transition by design, with no discovered mapper page value
+that passes through to the original ZX81 memory. Even if that existed,
+the original BASIC session's own RAM (variables, display file, stack)
+has already been overwritten by the compiled program by the time it
+runs, so there's no state left to return *to* — the closest realistic
+equivalent is a full reset into a fresh BASIC prompt, which RST 0
+already provides (restarts the current program, not a reset to BASIC).
+Revisit only if real value is identified in a genuine "soft reset to
+fresh BASIC" exit path distinct from what already exists.
