@@ -688,19 +688,25 @@ returns "no pulse" 3 times then "pulse" — confirmed the loop reads the
 port exactly 4 times (3 waits + the one that breaks it) before
 falling through to `ret`.
 
-**Also discussed and shelved: returning to the ZX81 BASIC prompt after
-a program ends**, instead of the permanent `di`/`halt` at
-`__END_PROGRAM`. Concluded not practically feasible with the current
-architecture: `tools/boot1.asm` remaps block 0 away from the ZX81's own
-ROM/RAM to run the compiled program, and `src/arch/zx81sd/doc/
-USAGE.md`'s own loader documentation notes the mapper's full-paging
-mode "doesn't go back to simple mode until the next reset" — i.e. it's
-a one-way transition by design, with no discovered mapper page value
-that passes through to the original ZX81 memory. Even if that existed,
-the original BASIC session's own RAM (variables, display file, stack)
-has already been overwritten by the compiled program by the time it
-runs, so there's no state left to return *to* — the closest realistic
-equivalent is a full reset into a fresh BASIC prompt, which RST 0
-already provides (restarts the current program, not a reset to BASIC).
-Revisit only if real value is identified in a genuine "soft reset to
-fresh BASIC" exit path distinct from what already exists.
+**Also discussed and closed: returning to the ZX81 BASIC prompt after a
+program ends**, instead of the permanent `di`/`halt` at
+`__END_PROGRAM`. Not feasible, for two independent reasons:
+
+1. **No software reset path exists in the FPGA at all** (confirmed by
+   the hardware's author): `nRESET` in `SD81.v` is a plain input wire
+   driven by the board's own reset circuit — nothing in the Z80-facing
+   register set can pulse it. There is no port write or mapper page
+   value that re-triggers the power-on sequence from software.
+2. Even if there were, `tools/boot1.asm` remaps block 0 away from the
+   ZX81's own ROM/RAM to run the compiled program, and `USAGE.md`'s own
+   loader documentation notes the mapper's full-paging mode "doesn't go
+   back to simple mode until the next reset" — a one-way transition by
+   design. And the original BASIC session's own RAM (variables, display
+   file, stack) has already been overwritten by the compiled program by
+   the time it runs, so there's no state left to return *to* anyway.
+
+Bottom line: the closest thing to "exit to BASIC" a zx81sd program can
+offer is `RST 0` (restarts the *current* program, already wired in the
+vector table above) — a genuine return to a ZX81 BASIC prompt requires
+the physical reset. Not revisiting unless the hardware itself gains a
+software-triggerable reset line.
