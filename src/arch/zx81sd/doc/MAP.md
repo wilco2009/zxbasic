@@ -710,3 +710,43 @@ offer is `RST 0` (restarts the *current* program, already wired in the
 vector table above) — a genuine return to a ZX81 BASIC prompt requires
 the physical reset. Not revisiting unless the hardware itself gains a
 software-triggerable reset line.
+
+## `array.asm` corrupted code on every multi-dimensional array access — RESOLVED (2026-07-22)
+
+Found while porting a third-party game (ZXOilPanic, heavy user of 2D
+arrays like `sprite(29,3)`, `down(4,1)`, etc.) to zx81sd. Caught live on
+real hardware with EightyOne's debugger: a write breakpoint on the Z80
+stack pointer's own descent showed a `PUSH DE` corrupting `FP_STKEND`
+(`$8024`), which cascaded into the floating-point calculator operating
+on garbage addresses, eventually executing screen/attribute memory as
+code and crashing (`RST 8`, `RST 30`, or a wild jump into `$C000+`,
+depending on what garbage byte the CPU happened to land on).
+
+Root cause, once traced back far enough: `src/lib/arch/zx48k/runtime/
+array/array.asm` (`__ARRAY`, the shared N-dimensional array indexing
+routine used by **every** zxbasic program that declares a
+multi-dimensional array) uses `LBOUND_PTR EQU 23698` — the real
+Spectrum's `MEMBOT` system variable — as scratch storage for 4 pointer
+pairs (8 bytes: `LBOUND_PTR`/`UBOUND_PTR`/`RET_ADDR`/`TMP_ARR_PTR`).
+On a real Spectrum that's safe ROM-reserved RAM. On zx81sd, address
+23698 ($5C92) falls **inside the program's own compiled code** (block 2,
+$4000-$5FFF) instead of a real sysvar — every array access silently
+corrupted a few bytes of code there. This is a **general zx81sd port
+bug**, not specific to this game: any zx81sd program using
+multi-dimensional arrays was at risk, it just hadn't been exercised
+heavily enough by earlier examples/tests to surface (none of them used
+2D+ arrays this intensively).
+
+Fix: new `src/lib/arch/zx81sd/runtime/array/array.asm`, an override of
+the shared file (Boriel's rule: the shared one stays untouched) with
+the only change being `LBOUND_PTR EQU ARRAY_SCRATCH` instead of `EQU
+23698` — `ARRAY_SCRATCH` is a new dedicated 8-byte sysvar
+(`sysvars.asm`, `SYSVAR_BASE + $83`, right after `FP_MEM_AREA`, still
+well within the $8000-$80FF sysvar block before the heap at $8100).
+
+Verified by simulation: 1.2 billion T-states with a write-monitor on
+both the old MEMBOT address (zero writes now) and the two known
+hang-vector addresses (`$0008`/`$0009`, `$0030`/`$0031` — never
+reached). Previously, with the same binary before this fix, the
+program reliably crashed within a few hundred million T-states via one
+of those two RST vectors.

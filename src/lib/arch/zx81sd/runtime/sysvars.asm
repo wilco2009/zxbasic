@@ -66,7 +66,17 @@ FP_CALC_STACK       EQU SYSVAR_BASE + $29   ; 60B — pila de números FP (12 n�
 FP_CALC_STACK_END   EQU FP_CALC_STACK + 60
 FP_MEM_AREA         EQU SYSVAR_BASE + $65   ; 30B — área MEM (6 celdas de 5 bytes)
 
-; Tamaño total del bloque de sysvars: $83 bytes
+; --- Scratch del indexador de arrays (runtime/array/array.asm) ---------
+; El array.asm compartido de zx48k usa la sysvar MEMBOT de la ROM Spectrum
+; (dirección fija 23698 = $5C92) como almacenamiento temporal para sus
+; punteros (LBOUND_PTR/UBOUND_PTR/RET_ADDR/TMP_ARR_PTR, 2 bytes cada uno).
+; En zx81sd esa dirección cae dentro del propio código compilado del
+; programa (bloque 2, $4000-$5FFF): cualquier array multidimensional lo
+; corrompía en cada acceso. El override zx81sd de array.asm usa esta
+; zona en su lugar.
+ARRAY_SCRATCH       EQU SYSVAR_BASE + $83   ; 8B — LBOUND/UBOUND/RET/TMP_ARR_PTR
+
+; Tamaño total del bloque de sysvars: $8B bytes
 
 ; --- Constantes de pantalla ---------------------------------------------
 
