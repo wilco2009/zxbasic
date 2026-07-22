@@ -750,3 +750,54 @@ hang-vector addresses (`$0008`/`$0009`, `$0030`/`$0031` — never
 reached). Previously, with the same binary before this fix, the
 program reliably crashed within a few hundred million T-states via one
 of those two RST vectors.
+
+## Same bug, two more places: `chr.asm` and `arith/divf.asm` — RESOLVED (2026-07-22)
+
+The array.asm fix above turned out to be one instance of a **systemic
+pattern** across the shared zx48k runtime: a project-wide grep for
+`EQU 2[34]...` found roughly a dozen files that hardcode raw Spectrum
+system-variable addresses as local scratch/temp storage, bypassing
+`sysvars.asm` entirely (so zx81sd's own sysvars.asm override never
+gets a chance to relocate them). Confirmed two more of these actually
+firing while continuing to debug ZXOilPanic on real hardware after the
+array.asm fix — the corruption just moved to a different address once
+the binary's layout shifted:
+
+- `runtime/chr.asm` (the `CHR$()` function, called 6 times per score
+  update in this game) uses `TMP EQU 23629` (Spectrum's `DEST`) to
+  stash the return address while calling `__MEM_ALLOC`. On zx81sd,
+  23629 ($5C4D) landed inside `__DIVU32` (32-bit division) in the
+  build being tested.
+- `runtime/arith/divf.asm` (floating-point division, used by
+  `score/66.0` in this game) uses `TMP EQU 23629` (same address as
+  chr.asm) and `ERR_SP EQU 23613` to save/restore a stack recovery
+  point around the division (a "longjmp" trick for divide-by-zero,
+  matching the real Spectrum ROM's error-trapping convention). This
+  code runs on **every** division, not just on error — worth noting
+  that on zx81sd this recovery mechanism doesn't actually do anything
+  useful anyway, since `__ERROR` does `DI`+`HALT` directly rather than
+  restoring `SP` from `ERR_SP` to unwind — but it still unconditionally
+  writes to both addresses every time regardless.
+
+Fix, same pattern as array.asm: new `runtime/chr.asm` and
+`runtime/arith/divf.asm` overrides, each with only the address changed
+(`CHR_SCRATCH` at `$808B`, `DIVF_SCRATCH` — TMP+ERR_SP, 4 bytes — at
+`$808D`, both in `sysvars.asm` after `ARRAY_SCRATCH`).
+
+Verified by simulation with a corrected VSYNC-pulse mock (the earlier
+simulations in this session had used an oversimplified port-toggle mock
+that doesn't match the real bit-6-1 pulse-counter semantics `PAUSE`
+expects, which risked mid-testing false "hangs"): monitored writes
+across the **entire** program's address space (not just block 2) for
+200 million T-states — zero unexpected corruption, versus reliably
+corrupting code within a few hundred thousand T-states before these
+two fixes.
+
+**Not yet audited**: the same grep turned up further untouched
+hardcodes in `runtime/arith/modf16.asm` (`TEMP EQU 23698`, same as
+array.asm's old MEMBOT) and `runtime/break.asm`'s `PPC` — the former
+isn't exercised by this particular game (no `MOD` operator used) so it
+was left alone for now; a full systemic audit of every zx48k runtime
+file for this pattern is worth doing separately at some point, this
+session only fixed the ones actually observed corrupting a real
+program.
