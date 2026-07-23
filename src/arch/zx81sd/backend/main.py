@@ -162,10 +162,16 @@ class Backend(Z80Backend):
         # instead of hanging forever (di+halt): wait for the next VSYNC
         # pulse (port $AF, bits 6-1 = pulse counter, reset on read) and
         # return, resuming right after the RST $38 that got us here.
+        # AF must be preserved: ported code that executes EI (Spectrum
+        # habit) makes stray ZX81 INTs land here mid-computation, and
+        # clobbering A/F corrupted arithmetic at random (see MAP.md,
+        # oilpanic sprite(13,2) bug).
+        output.append("push af")
         output.append(".core.__RST38_WAIT:")
         output.append("in   a, ($AF)")
         output.append("and  $7E")
         output.append("jr   z, .core.__RST38_WAIT")
+        output.append("pop  af")
         output.append("ret")
         output.append("org $0066")
         output.append("retn")  # $0066: NMI disabled, but the vector must exist

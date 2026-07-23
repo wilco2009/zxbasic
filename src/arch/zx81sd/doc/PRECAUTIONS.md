@@ -20,9 +20,12 @@ a runaway `HALT`/reset that's very hard to trace back to its cause
 (several bugs in this port took whole sessions to diagnose because of
 this).
 
-- **Spectrum sysvars → zx81sd sysvars**: the equivalence table is in
-  [`../../../lib/arch/zx81sd/runtime/sysvars.asm`](../../../lib/arch/zx81sd/runtime/sysvars.asm)
-  (all live at `$8000+`, not `$5C00+`). Examples already solved:
+- **Spectrum sysvars → zx81sd sysvars**: the full equivalence table
+  (every symbol, its Spectrum ROM address, and its zx81sd address) is
+  in [SYSVARS.md](SYSVARS.md) — check it first when a numeric address
+  turns up while porting code. The zx81sd definitions themselves live
+  in [`../../../lib/arch/zx81sd/runtime/sysvars.asm`](../../../lib/arch/zx81sd/runtime/sysvars.asm)
+  (all at `$8000+`, not `$5C00+`). Examples already solved:
   `UDG` (23675 → `$8002`), `COORDS` (23677/23678 → `$8004`/`$8005`).
   See [BASIC_CHANGES.md](BASIC_CHANGES.md) for the line-by-line detail
   of every case found so far.
@@ -94,13 +97,37 @@ Differences that matter when porting/writing code:
   any key right after a dot without risking forming a symbol by
   accident).
 
-## 4. There are no interrupts: never wait on `HALT`/`EI` to synchronize
+## 4. There are no interrupts: never `EI`, never wait on `HALT` to synchronize
 
-The zx81sd runtime always runs with interrupts disabled (`DI`); the
-`$0038` vector is only a `DI;HALT` trap, not a real interrupt handler.
-Any code (typically inline ASM in an example, not the stdlib) that
-does `EI` followed by `HALT` waiting for the Spectrum ROM's 50Hz pulse
-**hangs forever** — nothing ever wakes it up.
+The zx81sd runtime always runs with interrupts disabled (`DI`) for the
+**entire program**, not just around specific routines. Any ported code
+(typically inline ASM copied from a Spectrum source, not the stdlib)
+that does `EI` — anywhere, even if it's never followed by a `HALT` —
+is dangerous on zx81sd in two different ways:
+
+- `EI` followed by `HALT` waiting for the Spectrum ROM's 50Hz pulse
+  **hangs forever** — nothing ever wakes it up.
+- `EI` **on its own**, with no following `HALT`, is more insidious:
+  interrupts stay enabled for the rest of the program's execution, and
+  the ZX81 fires IM1 INTs continuously (roughly every scanline, tied
+  to video refresh). Every one of those jumps to `$0038`. That vector
+  preserves `AF` (`push af` / wait for VSYNC / `pop af` / `ret` — see
+  `backend/main.py`) precisely because this bug was found the hard
+  way, but it does **not** preserve anything else — if the interrupt
+  lands mid-computation in code that's mid-flight on `BC`/`DE`/`HL`
+  (typical of `__ARRAY`'s offset arithmetic, which uses the shadow
+  register set across an extended, uninterruptible-on-a-real-Spectrum
+  span), the result is silent, apparently-random data corruption whose
+  symptom shows up somewhere completely unrelated later. This exact
+  bug cost a multi-hour live-hardware debugging session on a ported
+  game (`sprite(N, col)` reading `-1` instead of its real value) before
+  being traced back to a stray `EI` at the end of an XOR-blit routine
+  — full writeup in [MAP.md](MAP.md) and the `oilpanic-portability`
+  project memory. **Grep every ported ASM block for `\bei\b` before
+  testing, the same way you'd grep for hardcoded addresses (section
+  1).** A bug that reliably disappears when single-stepping in the
+  debugger but reproduces at full speed is the signature to watch for
+  — EightyOne doesn't deliver INTs identically while paused.
 
 - **Replacement**: `VSYNC_TICK` (namespace `core`, in
   `runtime/vsync.asm`) polls the SD81 Booster hardware's real VSYNC
@@ -209,6 +236,10 @@ practice, not a hack.
 
 ## See also
 
+- [PORTING_GUIDE.md](PORTING_GUIDE.md) — step-by-step checklist for
+  porting a Spectrum program, built from everything in this file.
+- [SYSVARS.md](SYSVARS.md) — full Spectrum ↔ zx81sd sysvar and I/O
+  port equivalence table.
 - [BASIC_CHANGES.md](BASIC_CHANGES.md) — catalog of source changes
   already needed in official examples, with the general pattern to look
   for in any new example.

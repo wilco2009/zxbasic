@@ -801,3 +801,33 @@ was left alone for now; a full systemic audit of every zx48k runtime
 file for this pattern is worth doing separately at some point, this
 session only fixed the ones actually observed corrupting a real
 program.
+
+## Stray EI in ported code corrupted arithmetic at random — RESOLVED
+
+**Symptom (ZXOilPanic)**: `sprite(13,2)` — a plain 2D-array read —
+returned -1 instead of 2072, but only when the game ran at full speed:
+single-stepping in the debugger never reproduced it, the array's data
+in RAM was verified intact (no writes ever hit it), and an isolated
+test reading the same array/index worked perfectly. The wrong value
+(-1) made the sprite blit read from `@sprites - 1`, painting garbage.
+
+**Root cause**: the game's `tilexy` asm block ends with `EI` (and the
+BeepFX engine's exit path too) — normal on the Spectrum, but zx81sd's
+runtime runs with interrupts disabled at all times. After the first
+`tilexy` call, interrupts stayed enabled, and the ZX81 fires IM1 INTs
+continuously (A6 low during refresh), landing on `$0038`. Our
+`RST38_WAIT` vector clobbered **A and flags** (`in a,($AF)` / `and`),
+so any interrupted computation (e.g. `__ARRAY`'s offset arithmetic)
+resumed with corrupted A/F. Classic heisenbug: stepping in EightyOne
+doesn't deliver INTs the same way, so it vanished under the debugger.
+
+**Fix (two layers)**:
+1. Game side: `#ifndef __ZX81SD__` around both `EI`s (ported programs
+   must never re-enable interrupts on zx81sd).
+2. Runtime side (defense-in-depth, `backend/main.py`): the `$0038`
+   vector now does `push af` / wait for VSYNC pulse / `pop af` / `ret`,
+   so a stray INT costs only time instead of corrupting registers.
+
+**Lesson**: when porting Spectrum code, grep for `\bei\b` and `\bhalt\b`
+in every asm block. A heisenbug that disappears under single-stepping
+on zx81sd should immediately suggest interrupts got re-enabled.
