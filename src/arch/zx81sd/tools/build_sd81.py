@@ -20,10 +20,9 @@ Usage:
   uppercased — same convention split_sd81.py already enforces (must be
   representable in the ZX81 charset: letters/digits, no underscore).
 
-  --copy-to DIR: after building, also copy the page files and the .P
-  loader to DIR (e.g. an emulator's virtual-SD test folder). BOOT1.BIN
-  is not copied — it's shared across projects and normally lives once
-  in the SD root already.
+  --copy-to DIR: after building, also copy the page files, the .P
+  loader, and boot1.bin (from this tools/ folder) to DIR (e.g. an
+  emulator's virtual-SD test folder).
 
   __ZX81SD__ is always defined; pass more -D flags to add extras.
   Any unrecognized argument is forwarded to zxbc.py as-is (e.g. to
@@ -117,6 +116,13 @@ def main():
             for f in workdir.glob(pattern):
                 shutil.copy2(f, dest / f.name)
                 copied.append(f.name)
+
+        boot1 = TOOLS_DIR / "boot1.bin"
+        if boot1.is_file():
+            shutil.copy2(boot1, dest / boot1.name)
+            copied.append(boot1.name)
+        else:
+            print(f"  Warning: boot1.bin not found at {boot1}")
 
         print()
         print(f"== copied to {dest} ==")
