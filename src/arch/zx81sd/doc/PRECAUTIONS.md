@@ -234,6 +234,52 @@ Any real program using your library will almost certainly also use
 `sysvars.asm` — so leaving out the `#include` in your file is safe in
 practice, not a hack.
 
+## 9. Relocating a `sub`'s content with a manual `ORG` leaves `@name` behind
+
+If a program is too big to fit under the `$8000` sysvar/heap boundary
+(step 8 of [PORTING_GUIDE.md](PORTING_GUIDE.md)), a large constant data
+block (a sprite bitmap table, a level map...) can be banked out of the
+way by wrapping it in `ORG $E000` / restore-the-previous-`ORG` inside
+its `sub`'s `asm ... end asm` body, moving it into block 7 instead of
+the code/sysvar/heap area. This works for the **data bytes** — but
+`@name` (used from BASIC to get the sub's address, e.g. `poke @name,x`)
+keeps pointing at the sub's **original**, un-relocated position, not
+the `ORG`'d one.
+
+The reason: `@name` resolves to wherever zxbasic's own auto-generated
+`_name:` entry label ends up, and that label is emitted as literal ASM
+text **immediately before** your `asm` block's own content — i.e.
+before your `ORG` line has had any effect. Labels bind to the
+assembler's address counter at the point they're textually defined
+(ordinary, correct assembler behavior — `zxbasm` isn't doing anything
+wrong here), so redirecting the content elsewhere doesn't drag the
+label along with it. If nothing else ever gets emitted at the sub's
+"natural" position (because everything real was redirected away by the
+`ORG`), the auto-generated `_name` and `_name__leave` (end-of-function)
+labels end up at the very same address — a telltale sign in the
+debugger/disassembly that `@name` is stale: it'll resolve to
+`._name_leave`, not to your relocated data.
+
+Found while banking Mario GW's sprite bitmap table (`sub sprite()`,
+~5.4KB) into block 7: `init_sprites()`/`tilexy()`/`tilexyaddr()` all
+used `@sprite+N` to read/poke into it, silently computing addresses
+against the *old* position once the data itself moved to `$E000`.
+Symptom: no error at compile or load time — the game ran, the intro
+screen and music played fine, and it hung in an apparently unrelated
+infinite loop deep inside the sprite-blit routine (`tylexyasm`, stuck
+forever on `jr nz, sigline`), because the wrong addresses eventually
+corrupted the `(IX+n)` scratch fields the blit routine's own loop
+termination depends on — several steps removed from the actual bug.
+
+**Workaround**: don't use `@name` for a sub whose content you've
+manually `ORG`'d elsewhere — use the literal target address directly
+(e.g. `$E000`) everywhere `@name` was used, under `#ifdef __ZX81SD__`.
+The `sub` declaration itself must stay (it's still what emits the
+relocated bytes), but since nothing references it via `@name` any more,
+guard it against the dead-code eliminator (section 6 above) with a
+throwaway global reference, e.g.
+`dim __keep as uinteger: __keep = @name`.
+
 ## See also
 
 - [PORTING_GUIDE.md](PORTING_GUIDE.md) — step-by-step checklist for

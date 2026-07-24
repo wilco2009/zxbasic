@@ -140,6 +140,13 @@ address-of reference at **global** scope keeps it alive:
 dim __keep_sprites as uinteger: __keep_sprites = @sprites
 ```
 
+If you're banking a large data table (sprites, a level map...) into
+block 7 to fit under the `$8000` budget (step 8) by wrapping a `sub`'s
+`asm` body in a manual `ORG $E000`/restore, `@name` stops pointing at
+the relocated data entirely (a different, related gap — see
+[PRECAUTIONS.md](PRECAUTIONS.md) section 9) — you'll need both this
+dead-code workaround *and* to stop using `@name` as an address.
+
 ## 7. Sysvar scratch bugs already fixed in the runtime — no action needed
 
 Several shared `zx48k/runtime/` files historically hardcoded a raw

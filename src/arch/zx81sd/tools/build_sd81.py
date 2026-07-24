@@ -13,7 +13,7 @@ development:
      generates <BASE>.P, the tokenized BASIC loader)
 
 Usage:
-  python build_sd81.py <source.bas> [output_base] [--copy-to DIR]
+  python build_sd81.py <source.bas> [output_base] [--copy-to DIR] [--asm]
                         [-O LEVEL] [-D MACRO ...] [zxbc.py extra args...]
 
   output_base defaults to the source file's name (without extension),
@@ -23,6 +23,14 @@ Usage:
   --copy-to DIR: after building, also copy the page files, the .P
   loader, and boot1.bin (from this tools/ folder) to DIR (e.g. an
   emulator's virtual-SD test folder).
+
+  --asm: also emit <base>.asm, the generated assembly listing (a second
+  zxbc.py pass with -f asm, same source/optimize/defines). Off by
+  default (it's a much bigger file than the .map and rarely needed) —
+  turn it on when tracing a bug live against the .map/disassembly, to
+  see the actual instructions around a given address instead of just
+  its label. The .map (symbol addresses) is still always generated,
+  unconditionally, as before.
 
   __ZX81SD__ is always defined; pass more -D flags to add extras.
   Any unrecognized argument is forwarded to zxbc.py as-is (e.g. to
@@ -55,6 +63,9 @@ def main():
     )
     ap.add_argument(
         "--copy-to", metavar="DIR", help="Also copy the page files + .P loader here"
+    )
+    ap.add_argument(
+        "--asm", action="store_true", help="Also emit <base>.asm (the generated assembly listing)"
     )
     ap.add_argument("-O", "--optimize", default="2", help="zxbc.py optimization level (default 2)")
     ap.add_argument(
@@ -100,6 +111,29 @@ def main():
     print("== zxbc.py ==")
     print(" ".join(zxbc_cmd))
     subprocess.run(zxbc_cmd, check=True)
+
+    if args.asm:
+        asm_path = workdir / f"{base}.asm"
+        asm_cmd = [
+            sys.executable,
+            str(ZXBC),
+            str(source),
+            "--arch=zx81sd",
+            "-O",
+            args.optimize,
+            "-f",
+            "asm",
+            "-o",
+            str(asm_path),
+        ]
+        for d in ["__ZX81SD__"] + args.define:
+            asm_cmd += ["-D", d]
+        asm_cmd += extra
+
+        print()
+        print("== zxbc.py (asm) ==")
+        print(" ".join(asm_cmd))
+        subprocess.run(asm_cmd, check=True)
 
     print()
     print("== split_sd81.py ==")

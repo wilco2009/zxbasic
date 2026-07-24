@@ -48,6 +48,7 @@ _PAGE_MAP = [
     (3, 11),  # block 3 -> page 11
     (4, 12),  # block 4 -> page 12
     (5, 13),  # block 5 -> page 13
+    (7, 15),  # block 7 -> page 15 (data banking: large static tables via explicit ORG)
 ]
 
 _SD81_PAGE_PORT = 0xE7  # memory mapper port (full mode: OUT (C), A)
